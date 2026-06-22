@@ -1,0 +1,62 @@
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Virtual environment
+.venv/
+venv/
+ENV/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.eggs/
+dist/
+build/
+pip-wheel-metadata/
+
+# Testing / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# IDE
+.idea/workspace.xml
+.idea/shelf/
+.idea/httpRequests/
+.idea/dataSources/
+.idea/dataSources.local.xml
+*.iml
+.vscode/
+# IDE (whole folder — simpler)
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Local uploads / runtime data (add when needed)
+uploads/
+instance/
+
+# Enterprise / AI artifacts
+notebooks/.ipynb_checkpoints/
+frontend/node_modules/
+*.egg-info/
+.mypy_cache/
+.ruff_cache/
+
+# Runtime / uploads (future aic/aibot)
+uploads/
+data/
+models/
