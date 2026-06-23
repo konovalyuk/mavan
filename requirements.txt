@@ -30,3 +30,20 @@ typing_extensions==4.15.0
 # Future AI stack (from ai_project_template) — install when needed:
 # openai
 # faiss-cpu
+
+aiofiles==25.1.0
+
+#Mongo
+motor==3.7.1
+pymongo==4.17.0
+
+#File system
+python-multipart==0.0.32
+
+#Auth
+bcrypt==5.0.0
+PyJWT==2.13.0
+
+#LLM
+sse-starlette==3.4.5
+openai==2.43.0
