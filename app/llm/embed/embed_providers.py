@@ -1,0 +1,3 @@
+from app.llm.embed.types import EmbedProvider
+
+def get_embed_provider(provider: str | None = None) -> EmbedProvider: ...

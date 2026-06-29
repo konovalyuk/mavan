@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from app.api import router
 from app.database import create_indexes, get_client
 
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
