@@ -1,4 +1,6 @@
 from app.llm.chat.chat_providers import get_chat_provider
+from app.llm.embed.embed_providers import get_embed_provider
+from app.llm.rerank.rerank_providers import get_rerank_provider
 from enum import Enum
 
 
@@ -15,7 +17,8 @@ class Capability(str, Enum):
 
 _CAPABILITY_RESOLVERS = {
     Capability.CHAT: get_chat_provider,
-    # Capability.EMBED: get_embed_provider,
+    Capability.EMBED: get_embed_provider,
+    Capability.RERANK: get_rerank_provider,
     # Capability.OCR: get_ocr_provider,
 }
 

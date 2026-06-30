@@ -1,9 +1,9 @@
-from app.models.data_models import ChatMessage
 from config import llm_settings
 from app.llm.chat.providers.anthropic import AnthropicChatAdapter
 from app.llm.chat.providers.mock import MockChatAdapter
 from app.llm.chat.providers.openai_compatible import OpenAICompatibleChatAdapter
-from app.llm.chat.types import ChatProvider, ChatRequest
+from app.llm.chat.schemas import ChatCompletionRequest
+from app.llm.chat.types import ChatProvider
 
 CHAT_PROVIDERS = frozenset({
     "mock", "openai", "gemini", "mistral", "deepseek",
@@ -35,7 +35,6 @@ def get_chat_provider(provider: str | None = None) -> ChatProvider:
         return OpenAICompatibleChatAdapter(
             api_key=preset.api_key or "ollama",
             base_url=preset.base_url,
-            default_model=preset.default_model,
         )
     if name == "anthropic":
         if not preset.api_key:
@@ -43,7 +42,6 @@ def get_chat_provider(provider: str | None = None) -> ChatProvider:
         return AnthropicChatAdapter(
             api_key=preset.api_key,
             base_url=preset.base_url,
-            default_model=preset.default_model,
         )
     # if p == "llama_local":
     #     from app.llm.llama_local_provider import LlamaLocalProvider
@@ -59,22 +57,20 @@ def resolve_chat_model(*, request_model: str | None = None, provider: str | None
 
     name = chat_provider(provider)
     if name == "mock":
-        return llm_settings.CHAT_MODEL  # или любая заглушка
+        return "mock"
 
-    return llm_settings.provider_presets()[name].default_model
+    return llm_settings.provider_presets()[name].default_chat_model
 
 
-def build_chat_request(
-        *,
-        messages: list[ChatMessage],
-        request_model: str | None = None,
-        max_tokens: int | None = None,
-        temperature: float | None = None,
-        provider: str | None = None,
-) -> ChatRequest:
-    return ChatRequest(
-        messages=messages,
-        model=resolve_chat_model(request_model=request_model, provider=provider),
-        max_tokens=max_tokens if max_tokens is not None else llm_settings.DEFAULT_MAX_TOKENS,
-        temperature=temperature if temperature is not None else llm_settings.DEFAULT_TEMPERATURE,
-    )
+def prepare_chat_request(request: ChatCompletionRequest, provider: str | None = None) -> ChatCompletionRequest:
+    """Single place to resolve model / defaults before provider call."""
+    return ChatCompletionRequest.model_validate({
+        **request.model_dump(include=set(ChatCompletionRequest.model_fields.keys())),
+        "model": resolve_chat_model(request_model=request.model, provider=provider),
+        "max_tokens": request.max_tokens or llm_settings.DEFAULT_MAX_TOKENS,
+        "temperature": (
+            request.temperature
+            if request.temperature is not None
+            else llm_settings.DEFAULT_TEMPERATURE
+        )
+    })

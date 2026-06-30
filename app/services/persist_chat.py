@@ -11,7 +11,7 @@ from app.models.auth_model import MavanUser
 from app.database import get_db, get_client
 from app.models.chat_model import ChatModel
 from app.models.message_model import MessageCreate
-from app.models.data_models import ChatCompletionRequest, ChatMessage
+from app.models.data_models import MavanChatCompletionRequest, ChatMessage
 from app.services.chat_service import parse_object_id
 
 logger = logging.getLogger(__name__)
@@ -86,7 +86,7 @@ async def update_persist_chat(db, attachment_ids: list[str], now: datetime, user
 
 async def persist_chat(
         current_user: MavanUser,
-        chat_request: ChatCompletionRequest,
+        chat_request: MavanChatCompletionRequest,
         task_type: Optional[str],
         model: str,
         attachment_ids: Optional[list[str]] = None
@@ -294,7 +294,7 @@ async def validate_existing_message(provided_chat_id: str, parent_message_doc, c
         raise HTTPException(status_code=403, detail="Access to this chat is forbidden")
 
 
-def extract_message(chat_request: ChatCompletionRequest, role: str) -> Optional[ChatMessage]:
+def extract_message(chat_request: MavanChatCompletionRequest, role: str) -> Optional[ChatMessage]:
     return next(
         (
             msg for msg in chat_request.messages

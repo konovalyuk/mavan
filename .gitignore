@@ -59,4 +59,4 @@ frontend/node_modules/
 # Runtime / uploads (future aic/aibot)
 uploads/
 data/
-models/
+/models/

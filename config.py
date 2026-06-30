@@ -12,7 +12,8 @@ load_dotenv(BASE_DIR / ".env")
 class LlmProviderPreset:
     api_key: str
     base_url: str | None
-    default_model: str
+    default_chat_model: str
+    default_embed_model: str | None = None
 
 def env_bool(name: str, default: bool = False) -> bool:
     value = os.getenv(name)
@@ -64,12 +65,18 @@ class FileSettings:
 
 class LlmSettings:
     PROVIDER = os.getenv("LLM_PROVIDER", "mock")
+
     CHAT_PROVIDER = os.getenv("LLM_CHAT_PROVIDER") or PROVIDER
     EMBED_PROVIDER = os.getenv("LLM_EMBED_PROVIDER") or PROVIDER
+    RERANK_PROVIDER = os.getenv("LLM_RERANK_PROVIDER") or "mock"
     OCR_PROVIDER = os.getenv("LLM_OCR_PROVIDER") or PROVIDER
     SPEECH_PROVIDER = os.getenv("LLM_SPEECH_PROVIDER") or PROVIDER
+
     CHAT_MODEL = os.getenv("LLM_CHAT_MODEL", "")
     EMBED_MODEL = os.getenv("LLM_EMBED_MODEL", "")
+    RERANK_MODEL = os.getenv("LLM_RERANK_MODEL", "")
+    SPEECH_MODEL = os.getenv("LLM_SPEECH_MODEL", "")
+
     DEFAULT_MAX_TOKENS = int(os.getenv("LLM_DEFAULT_MAX_TOKENS", "1024"))
     DEFAULT_TEMPERATURE = float(os.getenv("LLM_DEFAULT_TEMPERATURE", "0.7"))
 
@@ -77,6 +84,7 @@ class LlmSettings:
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
     OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "") or None
     OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+    OPENAI_EMBED_MODEL = os.getenv("OPENAI_EMBED_MODEL", "text-embedding-3-small")
 
     # Anthropic
     ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
@@ -89,21 +97,29 @@ class LlmSettings:
         "https://generativelanguage.googleapis.com/v1beta/openai/",
     )
     GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash-lite")
+    GEMINI_EMBED_MODEL = os.getenv("GEMINI_EMBED_MODEL", "gemini-embedding-001")
+
+    #Cohere
+    COHERE_API_KEY = os.getenv("COHERE_API_KEY", "")
+    COHERE_RERANK_MODEL = os.getenv("COHERE_RERANK_MODEL", "rerank-english-v3.0")
 
     # Mistral
     MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY", "")
     MISTRAL_BASE_URL = os.getenv("MISTRAL_BASE_URL", "https://api.mistral.ai/v1")
     MISTRAL_MODEL = os.getenv("MISTRAL_MODEL", "mistral-small-latest")
+    MISTRAL_EMBED_MODEL = os.getenv("MISTRAL_EMBED_MODEL", "mistral-embed")
 
     # DeepSeek
     DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "")
     DEEPSEEK_BASE_URL = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
     DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
+    DEEPSEEK_EMBED_MODEL = os.getenv("DEEPSEEK_EMBED_MODEL", "deepseek-embed")
 
     # Hugging Face
     HF_TOKEN = os.getenv("HF_TOKEN", "") or os.getenv("HUGGINGFACE_API_KEY", "")
     HF_BASE_URL = os.getenv("HF_BASE_URL", "https://router.huggingface.co/v1")
     HF_MODEL = os.getenv("HF_MODEL", "meta-llama/Meta-Llama-3-8B-Instruct")
+    HF_EMBED_MODEL = os.getenv("HF_EMBED_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
 
     # GitHub Models
     GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "") or os.getenv("GITHUB_MODELS_TOKEN", "")
@@ -117,6 +133,7 @@ class LlmSettings:
     OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
     OLLAMA_API_KEY = os.getenv("OLLAMA_API_KEY", "ollama")
     OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2")
+    OLLAMA_EMBED_MODEL = os.getenv("OLLAMA_EMBED_MODEL", "nomic-embed-text")
 
     # Local Llama (aic-style)
     LLAMA_CKPT_DIR = os.getenv(
@@ -133,18 +150,30 @@ class LlmSettings:
     @classmethod
     def provider_presets(cls) -> dict[str, LlmProviderPreset]:
         return {
-            "openai": LlmProviderPreset(cls.OPENAI_API_KEY, cls.OPENAI_BASE_URL, cls.OPENAI_MODEL),
-            "gemini": LlmProviderPreset(cls.GOOGLE_API_KEY, cls.GOOGLE_BASE_URL, cls.GEMINI_MODEL),
-            "mistral": LlmProviderPreset(cls.MISTRAL_API_KEY, cls.MISTRAL_BASE_URL, cls.MISTRAL_MODEL),
-            "deepseek": LlmProviderPreset(cls.DEEPSEEK_API_KEY, cls.DEEPSEEK_BASE_URL, cls.DEEPSEEK_MODEL),
-            "huggingface": LlmProviderPreset(cls.HF_TOKEN, cls.HF_BASE_URL, cls.HF_MODEL),
+            "openai": LlmProviderPreset(cls.OPENAI_API_KEY, cls.OPENAI_BASE_URL, default_chat_model = cls.OPENAI_MODEL, default_embed_model = cls.OPENAI_EMBED_MODEL),
+            "gemini": LlmProviderPreset(cls.GOOGLE_API_KEY, cls.GOOGLE_BASE_URL, default_chat_model = cls.GEMINI_MODEL, default_embed_model = cls.GEMINI_EMBED_MODEL),
+            "mistral": LlmProviderPreset(cls.MISTRAL_API_KEY, cls.MISTRAL_BASE_URL, default_chat_model = cls.MISTRAL_MODEL, default_embed_model = cls.MISTRAL_EMBED_MODEL),
+            "deepseek": LlmProviderPreset(cls.DEEPSEEK_API_KEY, cls.DEEPSEEK_BASE_URL, default_chat_model = cls.DEEPSEEK_MODEL, default_embed_model = cls.DEEPSEEK_EMBED_MODEL),
+            "huggingface": LlmProviderPreset(cls.HF_TOKEN, cls.HF_BASE_URL, default_chat_model = cls.HF_MODEL, default_embed_model = cls.HF_EMBED_MODEL),
             "github_models": LlmProviderPreset(
-                cls.GITHUB_TOKEN, cls.GITHUB_MODELS_BASE_URL, cls.GITHUB_MODELS_MODEL
+                cls.GITHUB_TOKEN, cls.GITHUB_MODELS_BASE_URL, default_chat_model = cls.GITHUB_MODELS_MODEL
             ),
-            "ollama": LlmProviderPreset(cls.OLLAMA_API_KEY, cls.OLLAMA_BASE_URL, cls.OLLAMA_MODEL),
-            "anthropic": LlmProviderPreset(cls.ANTHROPIC_API_KEY, None, cls.ANTHROPIC_MODEL),
-            "llama_local": LlmProviderPreset("", None, cls.LLAMA_MODEL),  # api_key не нужен
+            "ollama": LlmProviderPreset(cls.OLLAMA_API_KEY, cls.OLLAMA_BASE_URL, default_chat_model = cls.OLLAMA_MODEL, default_embed_model = cls.OLLAMA_EMBED_MODEL),
+            "anthropic": LlmProviderPreset(cls.ANTHROPIC_API_KEY, None, default_chat_model = cls.ANTHROPIC_MODEL),
+            "llama_local": LlmProviderPreset("", None, default_chat_model = cls.LLAMA_MODEL),  # api_key не нужен
         }
+
+
+class RagSettings:
+    RETRIEVER = os.getenv("RAG_RETRIEVER", "vector")  # vector | file
+    DATA_DIR = os.getenv("RAG_DATA_DIR", "./data/notes")
+    INDEX_PATH = os.getenv("RAG_INDEX_PATH", "./.rag/chunks.json")
+    VECTOR_INDEX_PATH = os.getenv("RAG_VECTOR_INDEX_PATH", "./.rag/vector_index")
+    CONTEXT_MAX_CHARS = int(os.getenv("RAG_CONTEXT_MAX_CHARS", "8000"))
+    MIN_SCORE = float(os.getenv("RAG_MIN_SCORE", "0"))
+    MIN_RELATIVE_SCORE = float(os.getenv("RAG_MIN_RELATIVE_SCORE", "0"))
+    RERANK_ENABLED = env_bool("RAG_RERANK_ENABLED", False)
+    FETCH_K = int(os.getenv("RAG_FETCH_K", "20"))
 
 
 flask_settings = FlaskSettings()
@@ -153,3 +182,4 @@ mongo_settings = MongoSettings()
 auth_settings = AuthSettings()
 file_settings = FileSettings()
 llm_settings = LlmSettings()
+rag_settings = RagSettings()
