@@ -165,3 +165,21 @@ Optional AI stack (commented out in `requirements.txt`):
 ## Deployment
 
 Kubernetes manifests and Nginx config are in `deployment/`. Monitoring configs (Prometheus, Grafana) are in `monitoring/`. These are templates — adapt them before use in production.
+
+
+## RAG (notes search)
+
+1. Put `.txt`/`.md` files into `data/notes/`.
+2. Copy env: `cp .env.example .env` — set `LLM_EMBED_PROVIDER=mock`, `LLM_CHAT_PROVIDER=mock`, `RAG_RETRIEVER=vector`.
+3. Build index:
+   ```bash
+   python scripts/index_rag.py
+   python scripts/index_rag_vectors.py --from-json
+4. CLI:
+    ```bash
+    python scripts/run_inference.py mock "your question"      # RAG + chat
+    python scripts/run_agent.py mock "your question"        # agent + RAG tool
+    python scripts/run_inference.py --no-rag mock "hello"   # chat only
+
+5. API: POST /api/v1/rag/query, POST /api/v1/agents/rag (with auth token).
+

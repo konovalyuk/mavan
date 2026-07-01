@@ -10,12 +10,13 @@ from app.rag.prompts import build_rag_messages
 from app.rag.retriever import Retriever
 from app.rag.retrievers.file import FileRetriever
 from app.rag.retrievers.vector import VectorRetriever
-from app.rag.types import RagAnswer
+from app.rag.types import RagAnswer, RetrievedChunk
 from app.rag.rerank_step import maybe_rerank
 
 RAG_TEMPERATURE = 0.2
 DEFAULT_TOP_K = 5
 
+_pipeline: "RagPipeline | None" = None
 
 def build_retriever() -> Retriever:
     kind = rag_settings.RETRIEVER.lower()
@@ -30,12 +31,15 @@ def build_retriever() -> Retriever:
 class RagPipeline:
     retriever: Retriever
 
-    async def answer(self, question: str, *, provider_name: str | None = None, top_k: int = DEFAULT_TOP_K,
-                     stream: bool = False) -> RagAnswer:
+    async def retrieve_chunks(self, question: str, *, top_k: int = DEFAULT_TOP_K) -> list[RetrievedChunk]:
+        """Только поиск: retrieve + rerank. Без chat."""
         fetch_k = rag_settings.FETCH_K if rag_settings.RERANK_ENABLED else top_k
         raw = await self.retriever.retrieve(question, top_k=fetch_k)
-        raw = await maybe_rerank(question, raw, top_k=top_k)
-        chunks = prepare_context_chunks(raw, min_score=rag_settings.MIN_SCORE, max_chars=rag_settings.CONTEXT_MAX_CHARS, min_relative=rag_settings.MIN_RELATIVE_SCORE)
+        return await maybe_rerank(question, raw, top_k=top_k)
+
+    async def answer(self, question: str, *, provider_name: str | None = None, top_k: int = DEFAULT_TOP_K, stream: bool = False) -> RagAnswer:
+        chunks = await self.retrieve_chunks(question, top_k=top_k)
+        chunks = prepare_context_chunks(chunks, min_score=rag_settings.MIN_SCORE, max_chars=rag_settings.CONTEXT_MAX_CHARS, min_relative=rag_settings.MIN_RELATIVE_SCORE)
         messages = build_rag_messages(question, chunks)
         request = prepare_chat_request(ChatCompletionRequest(messages=messages, temperature=RAG_TEMPERATURE), provider=provider_name)
         provider = get_capability(Capability.CHAT)(provider_name)
@@ -45,10 +49,8 @@ class RagPipeline:
         return RagAnswer(text=response.text, sources=chunks)
 
     async def answer_stream(self, question: str, *, provider_name: str | None = None, top_k: int = DEFAULT_TOP_K):
-        fetch_k = rag_settings.FETCH_K if rag_settings.RERANK_ENABLED else top_k
-        raw = await self.retriever.retrieve(question, top_k=fetch_k)
-        raw = await maybe_rerank(question, raw, top_k=top_k)
-        chunks = prepare_context_chunks(raw, min_score=rag_settings.MIN_SCORE, max_chars=rag_settings.CONTEXT_MAX_CHARS)
+        chunks = await self.retrieve_chunks(question, top_k=top_k)
+        chunks = prepare_context_chunks(chunks, min_score=rag_settings.MIN_SCORE, max_chars=rag_settings.CONTEXT_MAX_CHARS, min_relative=rag_settings.MIN_RELATIVE_SCORE)
         messages = build_rag_messages(question, chunks)
         request = prepare_chat_request(ChatCompletionRequest(messages=messages, temperature=RAG_TEMPERATURE), provider=provider_name)
         provider = get_capability(Capability.CHAT)(provider_name)
@@ -56,8 +58,13 @@ class RagPipeline:
             yield delta, chunks
 
 
-default_pipeline = RagPipeline(retriever=build_retriever())
+def get_default_pipeline() -> RagPipeline:
+    global _pipeline
+    if _pipeline is None:
+        _pipeline = RagPipeline(retriever=build_retriever())
+    return _pipeline
+
 
 
 async def answer(question: str, **kwargs) -> RagAnswer:
-    return await default_pipeline.answer(question, **kwargs)
+    return await get_default_pipeline().answer(question, **kwargs)

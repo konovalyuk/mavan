@@ -48,6 +48,7 @@ PyJWT==2.13.0
 sse-starlette==3.4.5
 openai==2.43.0
 anthropic>=0.40.0
+httpx>=0.28.1
 
 #RAG
 numpy>=2.2.6

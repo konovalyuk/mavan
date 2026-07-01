@@ -35,11 +35,11 @@ async def main():
     provider = get_capability(Capability.CHAT)(provider_name)
 
     if use_rag:
-        from app.rag.pipeline import default_pipeline
+        from app.rag.pipeline import get_default_pipeline
         if stream:
             logging.info("RAG + Streaming")
             chunks = None
-            async for delta, retrieved in default_pipeline.answer_stream(prompt, provider_name=provider_name):
+            async for delta, retrieved in get_default_pipeline().answer_stream(prompt, provider_name=provider_name):
                 chunks = retrieved
                 print(delta, end="", flush=True)
             print()
@@ -49,7 +49,7 @@ async def main():
                     print(f"  [{c.score:.2f}] {c.source}: {c.text[:80]}...")
         else:
             logging.info("RAG & No streaming")
-            result = await default_pipeline.answer(prompt, provider_name=provider_name)
+            result = await get_default_pipeline().answer(prompt, provider_name=provider_name)
             print(result.text)
             if result.sources:
                 print("\n--- sources ---")

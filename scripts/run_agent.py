@@ -16,8 +16,12 @@ async def main():
     if args and args[0] in CHAT_PROVIDERS:
         provider = args.pop(0)
     question = " ".join(args) if args else input("You: ")
-    answer = await run_rag_agent(question, provider=provider)
+    answer, sources = await run_rag_agent(question, provider=provider)
     print(answer)
+    if sources:
+        print("\n--- sources ---")
+        for c in sources:
+            print(f"  [{c.score:.2f}] {c.source}: {c.text[:80]}...")
 
 
 if __name__ == "__main__":

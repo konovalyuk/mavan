@@ -16,6 +16,7 @@ class AgentRequest(BaseModel):
 class AgentResponse(BaseModel):
     answer: str
     agent: str
+    sources: list[dict]
 
 
 @router.post("/api/v1/agents/rag")
