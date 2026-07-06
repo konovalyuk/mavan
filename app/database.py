@@ -93,5 +93,13 @@ async def create_indexes():
         ])
         logger.info("Indexes created on llm_calls")
 
+        await db.domains.create_indexes([IndexModel([("name", ASCENDING)]), IndexModel([("status", ASCENDING)])])
+        await db.source_registry.create_indexes([
+            IndexModel([("domain_id", ASCENDING), ("url", ASCENDING)], unique=True),
+            IndexModel([("domain_id", ASCENDING), ("status", ASCENDING)]),
+        ])
+        await db.core_memory.create_indexes([IndexModel([("domain_id", ASCENDING)])])
+        logger.info("Indexes created on domain collections")
+
     except Exception as e:
         logger.exception("Failed to create MongoDB indexes: %s", str(e))

@@ -1,23 +1,23 @@
-# MAVAN
+# MAVAN — Decision Intelligence Platform
 
-A Python project with two independent web services and an AI-ready project scaffold:
+> **Work in progress.** This project is under active development. APIs, training thresholds, and docs may change before the capstone release. Current scope: [docs/CAPSTONE.md](docs/CAPSTONE.md).
 
-- **Flask** (`run_flask.py`, `ui/`) — UI service
-- **FastAPI** (`main.py`, `app/`) — API service
+**Kaggle Capstone:** [Agents for Business](https://www.kaggle.com/competitions/vibecoding-agents-capstone-project) track — [docs/KAGGLE_SUBMISSION.md](docs/KAGGLE_SUBMISSION.md)
 
-Both services share configuration from `.env` via `config.py`.
+AI-Powered Decision Intelligence: multi-agent pipeline builds a **domain transition model** (State→Action→Outcome), then fuses it with Gemini/LLM ensemble for probabilistic decision forecasting.
+
+- **Stage 1:** discovery → HITL sources → quality gate → train domain model → `core_memory`
+- **Stage 2:** `POST /api/v1/decisions/recommend` — forecast + recommended action
+
+Also includes RAG + tool-calling agents for notes ([docs/evaluation.md](docs/evaluation.md)).
+
+FastAPI (`main.py`) + Flask UI (`run_flask.py`). Config via `.env`.
 
 ## Problem
 
-MAVAN helps you query **your own notes** (markdown/text corpus) via:
-- **Fixed RAG** — retrieve → context → LLM
-- **Agent** — LLM calls `search_notes` when needed
-- **Hybrid retrieval** — keyword + vector (RRF)
+Organizations lack **decision memory**. MAVAN collects domain data via agents, trains a lightweight outcome model, and recommends actions from scenario probabilities — not generic chat.
 
-**Audience:** developer learning production-style RAG/agents (not course FAQ dataset).
-
-**Dataset:** external directory `RAG_DATA_DIR` (see [docs/setup.md](docs/setup.md)).
-
+**Secondary demo:** personal notes RAG/agent (`RAG_DATA_DIR`).
 
 ## Requirements
 
@@ -152,6 +152,10 @@ Boolean values (`FLASK_DEBUG`, `API_RELOAD`): `1`, `true`, `yes`, `on` — enabl
 | POST | `/api/v1/chat/completions` | Chat (+ optional `use_rag`) |
 | POST | `/api/v1/agents/rag` | Agent with tool calling |
 | POST | `/api/v1/agents/multi` | Multi-agent |
+| POST | `/api/v1/domains` | Create decision domain |
+| POST | `/api/v1/domains/{id}/pipeline/start` | Run domain pipeline |
+| POST | `/api/v1/decisions/forecast` | Probabilistic forecast |
+| POST | `/api/v1/decisions/recommend` | Decision recommendation |
 
 Interactive docs: http://127.0.0.1:8000/docs
 
@@ -185,82 +189,69 @@ Optional AI stack (commented out in `requirements.txt`):
 
 - Do not commit `.env` — only `.env.example` belongs in the repository.
 - For production, change `SECRET_KEY` and disable debug/reload.
-- IDE files (`.idea/`) are partially ignored via `.gitignore`.
-- `app/services/`, `training/`, `frontend/`, and `deployment/` contain scaffold placeholders for future AI features.
+- Decision Intelligence demo: [docs/setup.md](docs/setup.md), [docs/CAPSTONE.md](docs/CAPSTONE.md).
 
 ## Deployment
 
 Kubernetes manifests and Nginx config are in `deployment/`. Monitoring configs (Prometheus, Grafana) are in `monitoring/`. These are templates — adapt them before use in production.
 
 
-## RAG (notes search)
+## RAG (secondary demo — notes search)
 
-1. Put `.txt`/`.md` files into `data/notes/`.
-2. Copy env: `cp .env.example .env` — set `LLM_EMBED_PROVIDER=mock`, `LLM_CHAT_PROVIDER=mock`, `RAG_RETRIEVER=hybrid`.
+1. Put `.txt`/`.md` files into `data/notes/` (or set `RAG_DATA_DIR`).
+2. Copy env: `cp .env.example .env` — set providers and `RAG_RETRIEVER=hybrid`.
 3. Build index:
+
    ```bash
    python scripts/index_rag.py
    python scripts/index_rag_vectors.py --from-json
-4. CLI:
-    ```bash
-    python scripts/run_inference.py mock "your question"      # RAG + chat
-    python scripts/run_agent.py mock "your question"        # agent + RAG tool
-    python scripts/run_inference.py --no-rag mock "hello"   # chat only
+   ```
 
-5. API: POST /api/v1/rag/query, POST /api/v1/agents/rag (with auth token).
+4. CLI:
+
+   ```bash
+   python scripts/run_inference.py mock "your question"
+   python scripts/run_agent.py mock "your question"
+   python scripts/run_inference.py --no-rag mock "hello"
+   ```
+
+5. API: `POST /api/v1/rag/query`, `POST /api/v1/agents/rag` (auth token required).
 
 ## Docker
-   
-      ```bash
-      cp .env.example .env
-      docker compose up --build -d
-      docker compose exec api python scripts/index_rag.py
-      docker compose exec api python scripts/index_rag_vectors.py --from-json
-      curl http://localhost:8000/health
 
+```bash
+cp .env.example .env
+docker compose up --build -d
+docker compose exec api python scripts/index_rag.py
+docker compose exec api python scripts/index_rag_vectors.py --from-json
+curl http://localhost:8000/health
+```
 
-### Problem
+## Documentation
 
-MAVAN is a personal knowledge assistant: ingest markdown notes, index them (keyword + vector + hybrid), answer questions via RAG or agent with tool calling.
-
-### Dataset
-
-Own corpus (not course FAQ). Stored externally:
-
-- Notes: `RAG_DATA_DIR` (e.g. `/home/maksym/my/python/rag-data/data/notes`)
-- Eval: `RAG_EVAL_DIR/ground_truth.jsonl`
-
-### Rubric mapping
-
-| Criterion | Where in repo |
-|-----------|---------------|
-| Retrieval flow | `app/rag/pipeline.py`, `POST /api/v1/rag/query` |
-| Hybrid search | `app/rag/retrievers/hybrid.py`, `docs/evaluation.md` |
-| Agent + tools | `app/agents/loop.py`, `POST /api/v1/agents/rag` |
-| Multi-agent | `app/agents/multi/`, `POST /api/v1/agents/multi` |
-| Retrieval eval | `scripts/evaluate_retrieval.py` |
-| LLM eval | `scripts/evaluate_rag_answers.py` |
-| Interface | FastAPI `/docs`, CLI scripts |
-| Ingestion | `scripts/index_rag.py`, `scripts/index_rag_vectors.py` |
-| Monitoring | `app/services/monitoring/`, `scripts/dashboard.py` |
-| Docker | `Dockerfile`, `docker-compose.yml` |
-
-See also: [docs/setup.md](docs/setup.md), [docs/architecture.md](docs/architecture.md), [docs/evaluation.md](docs/evaluation.md).
-
+| Doc | Contents |
+|-----|----------|
+| [docs/CAPSTONE.md](docs/CAPSTONE.md) | Problem, architecture, agentic features, Gemini |
+| [docs/setup.md](docs/setup.md) | Mongo, Gemini, domain demo, rehearsal env |
+| [docs/evaluation.md](docs/evaluation.md) | Eval scripts and metrics |
+| [docs/architecture.md](docs/architecture.md) | Decision Intelligence + RAG flows |
+| [docs/KAGGLE_SUBMISSION.md](docs/KAGGLE_SUBMISSION.md) | Writeup, YouTube, GitHub checklist |
 
 ## Environment (RAG + eval)
-      ```env
-      RAG_DATA_DIR=/home/maksym/my/python/rag-data/data/notes
-      RAG_INDEX_PATH=/home/maksym/my/python/rag-data/.rag/chunks.json
-      RAG_VECTOR_INDEX_PATH=/home/maksym/my/python/rag-data/.rag/vector_index
-      RAG_EVAL_DIR=/home/maksym/my/python/rag-data/eval
-      RAG_RETRIEVER=hybrid
 
-### Peer review checklist
+```env
+RAG_DATA_DIR=/path/to/notes
+RAG_INDEX_PATH=/path/to/chunks.json
+RAG_VECTOR_INDEX_PATH=/path/to/vector_index
+RAG_EVAL_DIR=/path/to/eval
+RAG_RETRIEVER=hybrid
+```
 
-- [ ] Problem statement clear
-- [ ] Own dataset (not course FAQ)
-- [ ] Hybrid retrieval with eval table
-- [ ] Agent with tool calling demo
-- [ ] `docker compose up` works
-- [ ] Monitoring dashboard screenshot
+## Capstone checklist (repo)
+
+- [ ] Decision domain pipeline → `ready` → `/decisions/recommend`
+- [ ] Gemini configured (`LLM_CHAT_PROVIDER=gemini`)
+- [ ] Eval scripts run; results in writeup
+- [ ] Kaggle writeup (track **Agents for Business**) + YouTube + GitHub tag `capstone-v1`
+
+See [docs/KAGGLE_SUBMISSION.md](docs/KAGGLE_SUBMISSION.md).

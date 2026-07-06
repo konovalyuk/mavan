@@ -1,3 +1,4 @@
+from app.core.guardrails import AGENT_PYTHON_TOOL
 from app.rag.types import RetrievedChunk
 from app.services.rag_service import retrieve_chunks
 
@@ -30,6 +31,7 @@ CALCULATOR_TOOL = {
     },
 }
 
+
 def format_chunks(chunks: list[RetrievedChunk]) -> str:
     if not chunks:
         return "No relevant notes found."
@@ -41,7 +43,6 @@ def format_chunks(chunks: list[RetrievedChunk]) -> str:
 
 
 async def search_notes(question: str, *, top_k: int = 5) -> tuple[str, list[RetrievedChunk]]:
-    """Tool: только поиск по заметкам (без chat)."""
     chunks = await retrieve_chunks(question, top_k=top_k)
     return format_chunks(chunks), chunks
 
@@ -51,7 +52,8 @@ async def execute_tool(name: str, args: dict) -> tuple[str, dict]:
         text, sources = await search_notes(args["query"], top_k=args.get("top_k", 5))
         return text, {"sources": [c.source for c in sources]}
     if name == "run_python":
-        # ВНИМАНИЕ: eval/exec небезопасны — только для sandbox/demo
+        if not AGENT_PYTHON_TOOL:
+            return "run_python disabled", {"disabled": True}
         result = str(eval(args["code"], {"__builtins__": {}}, {}))
         return result, {"code": args["code"]}
     raise ValueError(f"Unknown tool: {name}")

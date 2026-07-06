@@ -55,3 +55,10 @@ streamlit==1.58.0
 
 #RAG
 numpy>=2.2.6
+
+# Decision Intelligence — domain model + ingest
+torch>=2.12.1
+sentencepiece>=0.2.1
+trafilatura>=2.1.0
+
+mcp>=1.28.1
