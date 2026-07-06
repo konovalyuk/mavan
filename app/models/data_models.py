@@ -14,6 +14,8 @@ class MavanChatCompletionRequest(ChatCompletionRequest):
     parent_message_id: Optional[str] = None
     task_type: Optional[str] = None
     provider: Optional[str] = None
+    use_rag: bool = False
+    rag_top_k: int = 5
 
     def to_provider_request(self) -> ChatCompletionRequest:
         return ChatCompletionRequest.model_validate(

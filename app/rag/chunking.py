@@ -19,3 +19,21 @@ def split_by_paragraphs(text: str, *, max_chars: int = 2000, overlap_chars: int 
     if buf:
         chunks.append(buf)
     return chunks
+
+
+def split_sliding_window(text: str, *, size: int = 2000, step: int = 1000) -> list[tuple[int, str]]:
+    """Returns (start_offset, chunk_text)."""
+    if not text:
+        return []
+    if len(text) <= size:
+        return [(0, text)]
+    out: list[tuple[int, str]] = []
+    start = 0
+    while start < len(text):
+        piece = text[start:start + size]
+        if piece.strip():
+            out.append((start, piece))
+        if start + size >= len(text):
+            break
+        start += step
+    return out

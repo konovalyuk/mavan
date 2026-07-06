@@ -33,13 +33,23 @@ class VectorStore:
                 text=self.chunks[i].text,
                 score=float(scores[i]),
                 source=self.chunks[i].source,
+                start_offset=self.chunks[i].start_offset,
+                chunk_id=self.chunks[i].chunk_id,
             )
             for i in top_indices
         ]
 
     def save(self, index_dir: Path) -> None:
         index_dir.mkdir(parents=True, exist_ok=True)
-        payload = [{"text": c.text, "source": c.source} for c in self.chunks]
+        payload = [
+            {
+                "text": c.text,
+                "source": c.source,
+                "start_offset": c.start_offset,
+                "chunk_id": c.chunk_id,
+            }
+            for c in self.chunks
+        ]
         (index_dir / "chunks.json").write_text(
             json.dumps(payload, ensure_ascii=False, indent=2),
             encoding="utf-8",
@@ -56,7 +66,13 @@ class VectorStore:
 
         data = json.loads(chunks_path.read_text(encoding="utf-8"))
         chunks = [
-            RetrievedChunk(text=item["text"], score=0.0, source=item.get("source"))
+            RetrievedChunk(
+                text=item["text"],
+                score=0.0,
+                source=item.get("source"),
+                start_offset=item.get("start_offset"),
+                chunk_id=item.get("chunk_id"),
+            )
             for item in data
         ]
         vectors = np.load(vectors_path)

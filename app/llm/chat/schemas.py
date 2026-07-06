@@ -42,6 +42,9 @@ class ChatCompletionRequest(BaseModel):
 
 
 class ChatCompletionResponse(BaseModel):
-    text: str
+    text: str | None = None
     model: str | None = None
     reasoning: str | None = None
+    tool_calls: list[dict] | None = None
+    usage: dict | None = None  # input_tokens, output_tokens — для monitoring
+    finish_reason: str | None = None

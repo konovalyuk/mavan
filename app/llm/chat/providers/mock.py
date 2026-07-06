@@ -1,4 +1,5 @@
 import asyncio
+import json
 import random
 from collections.abc import AsyncIterator
 
@@ -12,6 +13,24 @@ class MockChatAdapter:
             await asyncio.sleep(0.08)
 
     async def complete(self, request: ChatCompletionRequest) -> ChatCompletionResponse:
+        # Simulate one tool call when tools are present and no tool result yet
+        has_tool_result = any(m.role == "tool" for m in request.messages)
+        if request.tools and not has_tool_result:
+            user = next((m.content for m in request.messages if m.role == "user"), "")
+            return ChatCompletionResponse(
+                text=None,
+                model=request.model,
+                tool_calls=[{
+                    "id": "call_mock_1",
+                    "type": "function",
+                    "function": {
+                        "name": "search_notes",
+                        "arguments": json.dumps({"query": user or "test", "top_k": 5}),
+                    },
+                }],
+                finish_reason="tool_calls",
+            )
+
         text = self._reply(request)
         return ChatCompletionResponse(text=text, model=request.model)
 

@@ -86,5 +86,12 @@ async def create_indexes():
         ])
         logger.info("Indexes created on attachments (including compound indexes)")
 
+        # Create indexes for llm calls collection
+        await db.llm_calls.create_indexes([
+            IndexModel([("created_at", DESCENDING)]),
+            IndexModel([("capability", ASCENDING), ("created_at", DESCENDING)]),
+        ])
+        logger.info("Indexes created on llm_calls")
+
     except Exception as e:
         logger.exception("Failed to create MongoDB indexes: %s", str(e))

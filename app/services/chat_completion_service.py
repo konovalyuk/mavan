@@ -2,6 +2,7 @@ import json
 import logging
 from typing import AsyncIterator
 from bson import ObjectId
+from config import rag_settings
 
 from sse_starlette.sse import EventSourceResponse, ServerSentEvent
 from app.llm.capabilities import Capability, get_capability
@@ -10,6 +11,9 @@ from app.llm.chat.schemas import ChatCompletionRequest
 from app.models.auth_model import MavanUser
 from app.models.data_models import MavanChatCompletionRequest
 from app.services.persist_chat import persist_chat, update_chat
+from app.rag.pipeline import get_default_pipeline
+from app.rag.context_budget import prepare_context_chunks
+from app.rag.prompts import build_rag_messages
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +31,31 @@ def _resolve_task_type(chat_request: MavanChatCompletionRequest) -> str | None:
     return system.name if system else None
 
 
+async def _maybe_enrich_with_rag(chat_request: MavanChatCompletionRequest) -> ChatCompletionRequest:
+    if not chat_request.use_rag:
+        return prepare_chat_request(chat_request, provider=chat_request.provider)
+
+    user_msg = next((m for m in chat_request.messages if m.role == "user" and m.content), None)
+    if not user_msg:
+        return prepare_chat_request(chat_request, provider=chat_request.provider)
+
+    chunks = await get_default_pipeline().retrieve_chunks(user_msg.content, top_k=chat_request.rag_top_k)
+    chunks = prepare_context_chunks(chunks, min_score=rag_settings.MIN_SCORE, max_chars=rag_settings.CONTEXT_MAX_CHARS,
+                                    min_relative=rag_settings.MIN_RELATIVE_SCORE)
+    rag_messages = build_rag_messages(user_msg.content, chunks)
+
+    return prepare_chat_request(
+        ChatCompletionRequest(
+            messages=rag_messages,
+            model=chat_request.model,
+            max_tokens=chat_request.max_tokens,
+            temperature=chat_request.temperature,
+            stream=chat_request.stream,
+        ),
+        provider=chat_request.provider,
+    )
+
+
 async def chat_completions(
         *,
         current_user: MavanUser,
@@ -35,7 +64,7 @@ async def chat_completions(
 ):
     """Единая точка: persist + stream или complete."""
     provider_name = chat_request.provider
-    request = prepare_chat_request(chat_request, provider=provider_name)
+    request = await _maybe_enrich_with_rag(chat_request)
 
     chat_id, message_id, attachment_ids = await persist_chat(
         current_user=current_user,

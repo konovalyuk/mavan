@@ -50,5 +50,8 @@ openai==2.43.0
 anthropic>=0.40.0
 httpx>=0.28.1
 
+#Metric
+streamlit==1.58.0
+
 #RAG
 numpy>=2.2.6

@@ -7,6 +7,18 @@ A Python project with two independent web services and an AI-ready project scaff
 
 Both services share configuration from `.env` via `config.py`.
 
+## Problem
+
+MAVAN helps you query **your own notes** (markdown/text corpus) via:
+- **Fixed RAG** — retrieve → context → LLM
+- **Agent** — LLM calls `search_notes` when needed
+- **Hybrid retrieval** — keyword + vector (RRF)
+
+**Audience:** developer learning production-style RAG/agents (not course FAQ dataset).
+
+**Dataset:** external directory `RAG_DATA_DIR` (see [docs/setup.md](docs/setup.md)).
+
+
 ## Requirements
 
 - Python 3.10+
@@ -132,10 +144,24 @@ Boolean values (`FLASK_DEBUG`, `API_RELOAD`): `1`, `true`, `yes`, `on` — enabl
 
 ## API endpoints (FastAPI)
 
-| Method | Path            | Description                    |
-|--------|-----------------|--------------------------------|
-| GET    | `/`             | `{"message": "Hello World"}`   |
-| GET    | `/hello/{name}` | Greeting by name               |
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/health` | Health check |
+| POST | `/api/v1/rag/query` | RAG answer (JSON) |
+| POST | `/api/v1/rag/query/stream` | RAG answer (SSE) |
+| POST | `/api/v1/chat/completions` | Chat (+ optional `use_rag`) |
+| POST | `/api/v1/agents/rag` | Agent with tool calling |
+| POST | `/api/v1/agents/multi` | Multi-agent |
+
+Interactive docs: http://127.0.0.1:8000/docs
+
+### Example (RAG)
+
+      ```bash
+      curl -X POST http://127.0.0.1:8000/api/v1/rag/query \
+      -H "Authorization: Bearer $TOKEN" \
+      -H "Content-Type: application/json" \
+      -d '{"question":"What is in my notes?"}'
 
 Additional routes will be added in `app/api/endpoints.py` (chat, files, RAG, etc.).
 
@@ -170,7 +196,7 @@ Kubernetes manifests and Nginx config are in `deployment/`. Monitoring configs (
 ## RAG (notes search)
 
 1. Put `.txt`/`.md` files into `data/notes/`.
-2. Copy env: `cp .env.example .env` — set `LLM_EMBED_PROVIDER=mock`, `LLM_CHAT_PROVIDER=mock`, `RAG_RETRIEVER=vector`.
+2. Copy env: `cp .env.example .env` — set `LLM_EMBED_PROVIDER=mock`, `LLM_CHAT_PROVIDER=mock`, `RAG_RETRIEVER=hybrid`.
 3. Build index:
    ```bash
    python scripts/index_rag.py
@@ -183,3 +209,58 @@ Kubernetes manifests and Nginx config are in `deployment/`. Monitoring configs (
 
 5. API: POST /api/v1/rag/query, POST /api/v1/agents/rag (with auth token).
 
+## Docker
+   
+      ```bash
+      cp .env.example .env
+      docker compose up --build -d
+      docker compose exec api python scripts/index_rag.py
+      docker compose exec api python scripts/index_rag_vectors.py --from-json
+      curl http://localhost:8000/health
+
+
+### Problem
+
+MAVAN is a personal knowledge assistant: ingest markdown notes, index them (keyword + vector + hybrid), answer questions via RAG or agent with tool calling.
+
+### Dataset
+
+Own corpus (not course FAQ). Stored externally:
+
+- Notes: `RAG_DATA_DIR` (e.g. `/home/maksym/my/python/rag-data/data/notes`)
+- Eval: `RAG_EVAL_DIR/ground_truth.jsonl`
+
+### Rubric mapping
+
+| Criterion | Where in repo |
+|-----------|---------------|
+| Retrieval flow | `app/rag/pipeline.py`, `POST /api/v1/rag/query` |
+| Hybrid search | `app/rag/retrievers/hybrid.py`, `docs/evaluation.md` |
+| Agent + tools | `app/agents/loop.py`, `POST /api/v1/agents/rag` |
+| Multi-agent | `app/agents/multi/`, `POST /api/v1/agents/multi` |
+| Retrieval eval | `scripts/evaluate_retrieval.py` |
+| LLM eval | `scripts/evaluate_rag_answers.py` |
+| Interface | FastAPI `/docs`, CLI scripts |
+| Ingestion | `scripts/index_rag.py`, `scripts/index_rag_vectors.py` |
+| Monitoring | `app/services/monitoring/`, `scripts/dashboard.py` |
+| Docker | `Dockerfile`, `docker-compose.yml` |
+
+See also: [docs/setup.md](docs/setup.md), [docs/architecture.md](docs/architecture.md), [docs/evaluation.md](docs/evaluation.md).
+
+
+## Environment (RAG + eval)
+      ```env
+      RAG_DATA_DIR=/home/maksym/my/python/rag-data/data/notes
+      RAG_INDEX_PATH=/home/maksym/my/python/rag-data/.rag/chunks.json
+      RAG_VECTOR_INDEX_PATH=/home/maksym/my/python/rag-data/.rag/vector_index
+      RAG_EVAL_DIR=/home/maksym/my/python/rag-data/eval
+      RAG_RETRIEVER=hybrid
+
+### Peer review checklist
+
+- [ ] Problem statement clear
+- [ ] Own dataset (not course FAQ)
+- [ ] Hybrid retrieval with eval table
+- [ ] Agent with tool calling demo
+- [ ] `docker compose up` works
+- [ ] Monitoring dashboard screenshot

@@ -20,5 +20,21 @@ class OpenAICompatibleChatAdapter:
         response = await self._client.chat.completions.create(
             **request.to_provider_payload(stream=False),
         )
-        text = (response.choices[0].message.content or "").strip()
-        return ChatCompletionResponse(text=text, model=request.model)
+        msg = response.choices[0].message
+        usage = None
+        if response.usage:
+            usage = {
+                "input_tokens": response.usage.prompt_tokens,
+                "output_tokens": response.usage.completion_tokens,
+            }
+        tool_calls = None
+        if msg.tool_calls:
+            tool_calls = [tc.model_dump() for tc in msg.tool_calls]
+
+        return ChatCompletionResponse(
+            text=(msg.content or "").strip() or None,
+            model=request.model,
+            tool_calls=tool_calls,
+            usage=usage,
+            finish_reason=response.choices[0].finish_reason,
+        )

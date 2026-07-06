@@ -10,6 +10,7 @@ from app.rag.prompts import build_rag_messages
 from app.rag.retriever import Retriever
 from app.rag.retrievers.file import FileRetriever
 from app.rag.retrievers.vector import VectorRetriever
+from app.rag.retrievers.hybrid import HybridRetriever
 from app.rag.types import RagAnswer, RetrievedChunk
 from app.rag.rerank_step import maybe_rerank
 
@@ -24,7 +25,11 @@ def build_retriever() -> Retriever:
         return FileRetriever(Path(rag_settings.DATA_DIR), index_path=Path(rag_settings.INDEX_PATH))
     if kind == "vector":
         return VectorRetriever(Path(rag_settings.VECTOR_INDEX_PATH))
-    raise ValueError(f"Unknown RAG_RETRIEVER: {kind!r}. Use 'vector' or 'file'.")
+    if kind == "hybrid":
+        keyword = FileRetriever(Path(rag_settings.DATA_DIR), index_path=Path(rag_settings.INDEX_PATH))
+        vector = VectorRetriever(Path(rag_settings.VECTOR_INDEX_PATH))
+        return HybridRetriever(keyword, vector, rrf_k=rag_settings.RRF_K)
+    raise ValueError(f"Unknown RAG_RETRIEVER: {kind!r}. Use file|vector|hybrid.")
 
 
 @dataclass

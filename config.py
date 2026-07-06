@@ -165,15 +165,21 @@ class LlmSettings:
 
 
 class RagSettings:
-    RETRIEVER = os.getenv("RAG_RETRIEVER", "vector")  # vector | file
+    RETRIEVER = os.getenv("RAG_RETRIEVER", "hybrid")  # vector | file | hybrid
     DATA_DIR = os.getenv("RAG_DATA_DIR", "./data/notes")
     INDEX_PATH = os.getenv("RAG_INDEX_PATH", "./.rag/chunks.json")
     VECTOR_INDEX_PATH = os.getenv("RAG_VECTOR_INDEX_PATH", "./.rag/vector_index")
+    EVAL_DIR = os.getenv("RAG_EVAL_DIR", "./data/eval")
     CONTEXT_MAX_CHARS = int(os.getenv("RAG_CONTEXT_MAX_CHARS", "8000"))
     MIN_SCORE = float(os.getenv("RAG_MIN_SCORE", "0"))
     MIN_RELATIVE_SCORE = float(os.getenv("RAG_MIN_RELATIVE_SCORE", "0"))
     RERANK_ENABLED = env_bool("RAG_RERANK_ENABLED", False)
     FETCH_K = int(os.getenv("RAG_FETCH_K", "20"))
+    RRF_K = int(os.getenv("RAG_RRF_K", "60"))
+
+    @property
+    def ground_truth_path(self) -> str:
+        return os.path.join(self.EVAL_DIR, "ground_truth.jsonl")
 
 
 flask_settings = FlaskSettings()

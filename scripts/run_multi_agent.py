@@ -3,12 +3,10 @@ import asyncio
 import sys
 from pathlib import Path
 
-from app.agents.tools import SEARCH_NOTES_TOOL, CALCULATOR_TOOL
-
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from app.agents.loop import run_tool_loop
+from app.agents.multi.orchestrator import run_multi_agent
 from app.llm.chat.chat_providers import CHAT_PROVIDERS
 
 
@@ -17,12 +15,19 @@ async def main():
     provider = None
     if args and args[0] in CHAT_PROVIDERS:
         provider = args.pop(0)
+
     question = " ".join(args) if args else input("You: ")
-    answer, tool_log = await run_tool_loop(question, provider=provider, tools=[SEARCH_NOTES_TOOL, CALCULATOR_TOOL])
-    print(answer)
-    if tool_log:
-        print("\n--- tool calls ---")
-        for entry in tool_log:
+    result = await run_multi_agent(question, provider=provider)
+
+    print("\n=== ANSWER ===")
+    print(result["answer"])
+
+    print("\n=== RESEARCH (intermediate) ===")
+    print(result["research"])
+
+    if result["tool_log"]:
+        print("\n=== TOOL CALLS ===")
+        for entry in result["tool_log"]:
             print(f"  {entry['tool']}({entry['args']})")
 
 

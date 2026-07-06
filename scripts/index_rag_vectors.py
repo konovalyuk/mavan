@@ -22,6 +22,7 @@ async def main() -> None:
     parser.add_argument("--out", type=Path, default=Path(rag_settings.VECTOR_INDEX_PATH))
     parser.add_argument("--from-json", action="store_true", help="Use existing chunks.json")
     parser.add_argument("--embed-provider", type=str, default=None)
+    parser.add_argument("--strategy", choices=["paragraph", "sliding"], default="paragraph")
     args = parser.parse_args()
 
     out_dir = resolve_project_path(args.out)
