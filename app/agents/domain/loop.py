@@ -44,7 +44,7 @@ async def llm_json(prompt: str, *, provider: str | None = None) -> dict | list:
     chat = get_capability(Capability.CHAT)(provider)
     req = prepare_chat_request(
         ChatCompletionRequest(messages=[ChatMessage(role="user", content=prompt)], temperature=0.1),
-        provider=provider,
+        provider_name=provider,
     )
     resp = await chat.complete(req)
     text = (resp.text or "").strip()

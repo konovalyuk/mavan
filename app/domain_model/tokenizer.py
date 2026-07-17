@@ -2,7 +2,7 @@ from pathlib import Path
 
 import sentencepiece as spm
 
-from app.domain.settings import domain_settings
+from config import domain_settings
 
 
 def train_tokenizer(corpus_path: Path, model_prefix: Path, vocab_size: int | None = None) -> Path:

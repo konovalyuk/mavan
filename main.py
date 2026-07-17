@@ -5,7 +5,7 @@ __all__ = ["app"]
 
 if __name__ == "__main__":
     import uvicorn
-    from conf import api_settings
+    from config import api_settings
 
     uvicorn.run(
         "main:app",

@@ -24,7 +24,7 @@ def build_prompt(chunk_text: str) -> str:
 
 
 async def main():
-    chunks = load_chunk_index(Path(rag_settings.INDEX_PATH))
+    chunks = load_chunk_index(rag_settings.chunks_path)
     out_path = Path(rag_settings.ground_truth_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
 

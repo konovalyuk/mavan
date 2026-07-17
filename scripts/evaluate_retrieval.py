@@ -10,6 +10,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from config import rag_settings
+from app.eval.retrieval_metrics import hit_rate, mrr, relevance_flags
 from app.rag.pipeline import RagPipeline, build_retriever
 
 
@@ -20,19 +21,13 @@ def load_gt() -> list[dict]:
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
 
 
-def is_relevant(result, row: dict) -> bool:
-    if row.get("chunk_id") and result.chunk_id == row["chunk_id"]:
-        return True
-    return result.source == row["source"]
-
-
 async def eval_retriever(pipeline: RagPipeline, gt: list[dict], *, top_k: int = 5) -> dict:
     hit_rates, mrrs = [], []
     for row in gt:
         results = await pipeline.retrieve_chunks(row["question"], top_k=top_k)
-        rel = [1 if is_relevant(r, row) else 0 for r in results[:top_k]]
-        hit_rates.append(1.0 if any(rel) else 0.0)
-        mrrs.append(next((1.0 / i for i, x in enumerate(rel, 1) if x), 0.0))
+        rel = relevance_flags(results, row, top_k=top_k)
+        hit_rates.append(hit_rate(rel))
+        mrrs.append(mrr(rel))
     n = len(gt) or 1
     return {"hit_rate": sum(hit_rates) / n, "mrr": sum(mrrs) / n, "n": n}
 
@@ -40,11 +35,9 @@ async def eval_retriever(pipeline: RagPipeline, gt: list[dict], *, top_k: int = 
 async def run_config(*, retriever: str, rerank: bool) -> dict:
     os.environ["RAG_RETRIEVER"] = retriever
     os.environ["RAG_RERANK_ENABLED"] = "true" if rerank else "false"
-    # build_retriever читает env при каждом вызове
     import importlib
     import config
     importlib.reload(config)
-    from config import rag_settings as rs
     from app.rag.pipeline import build_retriever as br
 
     pipeline = RagPipeline(retriever=br())
@@ -61,13 +54,7 @@ async def main():
         print("Run: python scripts/generate_ground_truth.py")
         return
 
-    configs = [
-        ("file", False),
-        ("vector", False),
-        ("hybrid", False),
-        ("hybrid", True),
-    ]
-
+    configs = [("file", False), ("vector", False), ("hybrid", False), ("hybrid", True)]
     results = []
     for retriever, rerank in configs:
         r = await run_config(retriever=retriever, rerank=rerank)

@@ -167,7 +167,6 @@ class LlmSettings:
 class RagSettings:
     RETRIEVER = os.getenv("RAG_RETRIEVER", "hybrid")  # vector | file | hybrid
     DATA_DIR = os.getenv("RAG_DATA_DIR", "./data/notes")
-    INDEX_PATH = os.getenv("RAG_INDEX_PATH", "./.rag/chunks.json")
     VECTOR_INDEX_PATH = os.getenv("RAG_VECTOR_INDEX_PATH", "./.rag/vector_index")
     EVAL_DIR = os.getenv("RAG_EVAL_DIR", "./data/eval")
     CONTEXT_MAX_CHARS = int(os.getenv("RAG_CONTEXT_MAX_CHARS", "8000"))
@@ -178,6 +177,10 @@ class RagSettings:
     RRF_K = int(os.getenv("RAG_RRF_K", "60"))
 
     @property
+    def chunks_path(self) -> Path:
+        return Path(self.VECTOR_INDEX_PATH) / "chunks.json"
+
+    @property
     def ground_truth_path(self) -> str:
         return os.path.join(self.EVAL_DIR, "ground_truth.jsonl")
 
@@ -186,7 +189,9 @@ class DomainSettings:
     MODEL_DIR = os.getenv("DOMAIN_MODEL_DIR", str(BASE_DIR / "data" / "domain_models"))
     INGEST_CACHE_TTL_HOURS = int(os.getenv("INGEST_CACHE_TTL_HOURS", "24"))
     QUALITY_PROVIDERS = os.getenv("QUALITY_PROVIDERS", "gemini,openai,mistral")
+    FORECAST_PROVIDERS = os.getenv("FORECAST_PROVIDERS") or QUALITY_PROVIDERS
     QUALITY_TIMEOUT_SEC = int(os.getenv("QUALITY_TIMEOUT_SEC", "60"))
+    FORECAST_TIMEOUT_SEC = int(os.getenv("FORECAST_TIMEOUT_SEC", "60"))
     QUALITY_CYCLE_MAX = int(os.getenv("QUALITY_CYCLE_MAX", "5"))
     QUALITY_CREDIBILITY_MIN = float(os.getenv("QUALITY_CREDIBILITY_MIN", "70"))
     QUALITY_COMPLETENESS_MIN = float(os.getenv("QUALITY_COMPLETENESS_MIN", "60"))

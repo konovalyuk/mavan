@@ -3,7 +3,7 @@ import httpx
 import trafilatura
 
 from app.core.guardrails import sanitize_text, validate_url
-from app.domain.settings import domain_settings
+from config import domain_settings
 
 
 async def google_search(query: str) -> tuple[str, dict]:

@@ -144,30 +144,71 @@ Boolean values (`FLASK_DEBUG`, `API_RELOAD`): `1`, `true`, `yes`, `on` — enabl
 
 ## API endpoints (FastAPI)
 
+### Intelligence API (group 2)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/v1/chat/completions` | Unified chat: `mode=ask\|agent`, optional `stream` |
+| POST | `/api/v1/decisions/recommend` | Forecast + recommended action |
+
+`POST /api/v1/chat/completions` fields:
+
+| Field | Description |
+|-------|-------------|
+| `mode` | `ask` (default), `agent` |
+| `task_type` | Optional Mavan preset (`translate`, `summarize`, `transcribe`, `qa`). Freeform instructions go in `messages` with `role=system` + `content` (OpenAI-style). |
+| `attachment_ids` | Indexed attachments to attach to the chat; RAG runs automatically when the chat has attachments |
+| `agent_tools` | Preset (`notes`, `web`, `python`, `default`, `full`) or tool list |
+| `chat_id` / `parent_message_id` | Continue a chat; history loads automatically when `parent_message_id` is set |
+| `stream` | SSE: `start` → `partial` (tokens) or `thinking` (agent modes) → `completed` |
+
+Response (non-stream): `{chat_id, message_id, model, text, mode, sources, tool_calls}`.
+
+### Domain API (Stage 1)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/v1/domains` | Create decision domain |
+| POST | `/api/v1/domains/{id}/pipeline/start` | Run domain pipeline |
+
+### Other
+
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/health` | Health check |
-| POST | `/api/v1/rag/query` | RAG answer (JSON) |
-| POST | `/api/v1/rag/query/stream` | RAG answer (SSE) |
-| POST | `/api/v1/chat/completions` | Chat (+ optional `use_rag`) |
-| POST | `/api/v1/agents/rag` | Agent with tool calling |
-| POST | `/api/v1/agents/multi` | Multi-agent |
-| POST | `/api/v1/domains` | Create decision domain |
-| POST | `/api/v1/domains/{id}/pipeline/start` | Run domain pipeline |
-| POST | `/api/v1/decisions/forecast` | Probabilistic forecast |
-| POST | `/api/v1/decisions/recommend` | Decision recommendation |
 
 Interactive docs: http://127.0.0.1:8000/docs
 
-### Example (RAG)
+### Example (ask + RAG via chat attachments)
 
-      ```bash
-      curl -X POST http://127.0.0.1:8000/api/v1/rag/query \
-      -H "Authorization: Bearer $TOKEN" \
-      -H "Content-Type: application/json" \
-      -d '{"question":"What is in my notes?"}'
+Upload → `POST /api/v1/files/index` → pass `attachment_ids` on the first turn (and/or continue with `chat_id` + `parent_message_id`; RAG scopes to `chat.attachment_ids`).
 
-Additional routes will be added in `app/api/endpoints.py` (chat, files, RAG, etc.).
+Indexed attachments attached to a chat are removed from the RAG index when the chat is deleted. `POST /api/v1/files/unindex` remains as a manual escape hatch (e.g. indexed file never attached to a chat).
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/v1/chat/completions \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "mode": "ask",
+    "attachment_ids": ["ATTACHMENT_ID"],
+    "stream": false,
+    "messages": [{"role": "user", "content": "What is in this document?"}]
+  }'
+```
+
+### Example (agent)
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/v1/chat/completions \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "mode": "agent",
+    "agent_tools": "full",
+    "messages": [{"role": "user", "content": "Summarize my notes"}]
+  }'
+```
 
 ## Dependencies
 
@@ -200,11 +241,10 @@ Kubernetes manifests and Nginx config are in `deployment/`. Monitoring configs (
 
 1. Put `.txt`/`.md` files into `data/notes/` (or set `RAG_DATA_DIR`).
 2. Copy env: `cp .env.example .env` — set providers and `RAG_RETRIEVER=hybrid`.
-3. Build index:
+3. Build index (or upload `.txt`/`.md` via `POST /api/v1/files/upload` — background index append):
 
    ```bash
-   python scripts/index_rag.py
-   python scripts/index_rag_vectors.py --from-json
+   python scripts/index_rag_vectors.py
    ```
 
 4. CLI:
@@ -215,15 +255,14 @@ Kubernetes manifests and Nginx config are in `deployment/`. Monitoring configs (
    python scripts/run_inference.py --no-rag mock "hello"
    ```
 
-5. API: `POST /api/v1/rag/query`, `POST /api/v1/agents/rag` (auth token required).
+5. API: `POST /api/v1/chat/completions` with `mode=ask` (RAG if chat has indexed attachments) or `mode=agent` (auth token required).
 
 ## Docker
 
 ```bash
 cp .env.example .env
 docker compose up --build -d
-docker compose exec api python scripts/index_rag.py
-docker compose exec api python scripts/index_rag_vectors.py --from-json
+docker compose exec api python scripts/index_rag_vectors.py
 curl http://localhost:8000/health
 ```
 
@@ -241,7 +280,6 @@ curl http://localhost:8000/health
 
 ```env
 RAG_DATA_DIR=/path/to/notes
-RAG_INDEX_PATH=/path/to/chunks.json
 RAG_VECTOR_INDEX_PATH=/path/to/vector_index
 RAG_EVAL_DIR=/path/to/eval
 RAG_RETRIEVER=hybrid

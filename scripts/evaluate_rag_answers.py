@@ -10,6 +10,7 @@ sys.path.insert(0, str(ROOT))
 
 from config import rag_settings
 from app.rag.pipeline import get_default_pipeline
+from app.services.prompts import build_system_content
 from app.llm.capabilities import Capability, get_capability
 from app.llm.chat.chat_providers import prepare_chat_request
 from app.llm.chat.schemas import ChatCompletionRequest, ChatMessage
@@ -28,19 +29,29 @@ async def main():
     gt_path = Path(rag_settings.ground_truth_path)
     rows = [json.loads(l) for l in gt_path.read_text(encoding="utf-8").splitlines() if l.strip()]
 
-    pipeline = get_default_pipeline()
     judge = get_capability(Capability.CHAT)(None)
     scores = []
 
     for row in rows[:10]:  # cap for dev
-        rag = await pipeline.answer(row["question"])
-        context = "\n".join(c.text[:300] for c in rag.sources)
+        chunks = await get_default_pipeline().retrieve_chunks(row["question"])
+        rag_request = prepare_chat_request(
+            ChatCompletionRequest(
+                messages=[
+                    ChatMessage(role="system", content=build_system_content(chunks=chunks)),
+                    ChatMessage(role="user", content=row["question"]),
+                ],
+                temperature=0.2,
+            )
+        )
+        rag_resp = await judge.complete(rag_request)
+        answer = rag_resp.text or ""
+        context = "\n".join(c.text[:300] for c in chunks)
         request = prepare_chat_request(
             ChatCompletionRequest(
                 messages=[ChatMessage(role="user", content=JUDGE_PROMPT.format(
                     question=row["question"],
                     context=context,
-                    answer=rag.text,
+                    answer=answer,
                 ))],
                 temperature=0.0,
             )

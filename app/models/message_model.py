@@ -5,9 +5,12 @@ from app.models.mongo_model import MongoConverter
 
 
 class MessageBase(BaseModel):
-    attachment_ids: Optional[list[str]] = None  # Unified field for both files and documents
+    attachment_ids: Optional[list[str]] = None
     content_user: str
     content_assistant: Optional[str] = None
+    mode: Optional[str] = None
+    sources: Optional[list[dict]] = None
+    tool_log: Optional[list[dict]] = None
     reaction: Optional[Literal["like", "dislike", "neutral"]] = None
     reaction_comment: Optional[str] = None
     created_at: datetime

@@ -9,11 +9,13 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from config import rag_settings
-from app.rag.pipeline import get_default_pipeline
-from app.agents.loop import run_tool_loop
+from app.agents.tool_loop.loop import run_tool_loop, resolve_tools
+from app.agents.types import AGENT_TEMPERATURE, AGENT_TOOL_CHOICE
 from app.llm.capabilities import Capability, get_capability
 from app.llm.chat.chat_providers import prepare_chat_request
 from app.llm.chat.schemas import ChatCompletionRequest, ChatMessage
+from app.rag.pipeline import get_default_pipeline
+from app.services.prompts import build_system_content
 
 JUDGE = """Score 1 if ANSWER is supported by REFERENCE text, else 0.
 Reply JSON: {{"score": 0 or 1}}
@@ -63,13 +65,33 @@ async def main():
             ChatCompletionRequest(messages=[ChatMessage(role="user", content=q)], temperature=0.2),
         ))
         await asyncio.sleep(SLEEP_SEC)
-        rag = await pipeline.answer(q)
+        chunks = await pipeline.retrieve_chunks(q)
+        rag_req = prepare_chat_request(ChatCompletionRequest(
+            messages=[
+                ChatMessage(role="system", content=build_system_content(chunks=chunks)),
+                ChatMessage(role="user", content=q),
+            ],
+            temperature=0.2,
+        ))
+        rag_resp = await llm_complete(chat, rag_req)
         await asyncio.sleep(SLEEP_SEC)
-        agent_ans, _ = await run_tool_loop(q)
+        agent_req = prepare_chat_request(
+            ChatCompletionRequest(
+                messages=[
+                    ChatMessage(role="system", content=build_system_content(mode="agent")),
+                    ChatMessage(role="user", content=q),
+                ],
+                tools=resolve_tools(None),
+                tool_choice=AGENT_TOOL_CHOICE,
+                temperature=AGENT_TEMPERATURE,
+            ),
+        )
+        result = await run_tool_loop(request=agent_req, chat_provider=chat)
+        agent_ans = result.answer
         await asyncio.sleep(SLEEP_SEC)
 
         results["no_rag"].append(await judge(chat, q, ref, plain.text or ""))
-        results["rag"].append(await judge(chat, q, ref, rag.text or ""))
+        results["rag"].append(await judge(chat, q, ref, rag_resp.text or ""))
         results["agent"].append(await judge(chat, q, ref, agent_ans))
 
     summary = {k: round(sum(v) / len(v), 3) if v else 0 for k, v in results.items()}

@@ -2,31 +2,28 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from config import rag_settings
-from app.llm.capabilities import Capability, get_capability
-from app.llm.chat.chat_providers import prepare_chat_request
-from app.llm.chat.schemas import ChatCompletionRequest
 from app.rag.context_budget import prepare_context_chunks
-from app.rag.prompts import build_rag_messages
 from app.rag.retriever import Retriever
 from app.rag.retrievers.file import FileRetriever
 from app.rag.retrievers.vector import VectorRetriever
 from app.rag.retrievers.hybrid import HybridRetriever
-from app.rag.types import RagAnswer, RetrievedChunk
+from app.rag.types import RetrievedChunk
 from app.rag.rerank_step import maybe_rerank
 
-RAG_TEMPERATURE = 0.2
 DEFAULT_TOP_K = 5
 
 _pipeline: "RagPipeline | None" = None
 
+
 def build_retriever() -> Retriever:
     kind = rag_settings.RETRIEVER.lower()
+    chunks_path = rag_settings.chunks_path
     if kind == "file":
-        return FileRetriever(Path(rag_settings.DATA_DIR), index_path=Path(rag_settings.INDEX_PATH))
+        return FileRetriever(index_path=chunks_path)
     if kind == "vector":
         return VectorRetriever(Path(rag_settings.VECTOR_INDEX_PATH))
     if kind == "hybrid":
-        keyword = FileRetriever(Path(rag_settings.DATA_DIR), index_path=Path(rag_settings.INDEX_PATH))
+        keyword = FileRetriever(index_path=chunks_path)
         vector = VectorRetriever(Path(rag_settings.VECTOR_INDEX_PATH))
         return HybridRetriever(keyword, vector, rrf_k=rag_settings.RRF_K)
     raise ValueError(f"Unknown RAG_RETRIEVER: {kind!r}. Use file|vector|hybrid.")
@@ -36,31 +33,11 @@ def build_retriever() -> Retriever:
 class RagPipeline:
     retriever: Retriever
 
-    async def retrieve_chunks(self, question: str, *, top_k: int = DEFAULT_TOP_K) -> list[RetrievedChunk]:
-        """Только поиск: retrieve + rerank. Без chat."""
+    async def retrieve_chunks(self, question: str, *, top_k: int = DEFAULT_TOP_K, source_prefixes: tuple[str, ...] | None = None) -> list[RetrievedChunk]:
         fetch_k = rag_settings.FETCH_K if rag_settings.RERANK_ENABLED else top_k
-        raw = await self.retriever.retrieve(question, top_k=fetch_k)
-        return await maybe_rerank(question, raw, top_k=top_k)
-
-    async def answer(self, question: str, *, provider_name: str | None = None, top_k: int = DEFAULT_TOP_K, stream: bool = False) -> RagAnswer:
-        chunks = await self.retrieve_chunks(question, top_k=top_k)
-        chunks = prepare_context_chunks(chunks, min_score=rag_settings.MIN_SCORE, max_chars=rag_settings.CONTEXT_MAX_CHARS, min_relative=rag_settings.MIN_RELATIVE_SCORE)
-        messages = build_rag_messages(question, chunks)
-        request = prepare_chat_request(ChatCompletionRequest(messages=messages, temperature=RAG_TEMPERATURE), provider=provider_name)
-        provider = get_capability(Capability.CHAT)(provider_name)
-        if stream:
-            raise NotImplementedError("use answer_stream()")
-        response = await provider.complete(request)
-        return RagAnswer(text=response.text, sources=chunks)
-
-    async def answer_stream(self, question: str, *, provider_name: str | None = None, top_k: int = DEFAULT_TOP_K):
-        chunks = await self.retrieve_chunks(question, top_k=top_k)
-        chunks = prepare_context_chunks(chunks, min_score=rag_settings.MIN_SCORE, max_chars=rag_settings.CONTEXT_MAX_CHARS, min_relative=rag_settings.MIN_RELATIVE_SCORE)
-        messages = build_rag_messages(question, chunks)
-        request = prepare_chat_request(ChatCompletionRequest(messages=messages, temperature=RAG_TEMPERATURE), provider=provider_name)
-        provider = get_capability(Capability.CHAT)(provider_name)
-        async for delta in provider.stream(request):
-            yield delta, chunks
+        raw = await self.retriever.retrieve(question, top_k=fetch_k, source_prefixes=source_prefixes)
+        chunks = await maybe_rerank(question, raw, top_k=top_k)
+        return prepare_context_chunks(chunks, min_score=rag_settings.MIN_SCORE, max_chars=rag_settings.CONTEXT_MAX_CHARS, min_relative=rag_settings.MIN_RELATIVE_SCORE)
 
 
 def get_default_pipeline() -> RagPipeline:
@@ -70,6 +47,6 @@ def get_default_pipeline() -> RagPipeline:
     return _pipeline
 
 
-
-async def answer(question: str, **kwargs) -> RagAnswer:
-    return await get_default_pipeline().answer(question, **kwargs)
+def reset_pipeline() -> None:
+    global _pipeline
+    _pipeline = None

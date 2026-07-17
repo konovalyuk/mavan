@@ -3,8 +3,7 @@ from app.rag.retrievers.vector import VectorRetriever
 from app.rag.types import RetrievedChunk
 
 
-def reciprocal_rank_fusion(result_lists: list[list[RetrievedChunk]], *, k: int = 60, top_k: int = 5) -> list[
-    RetrievedChunk]:
+def reciprocal_rank_fusion(result_lists: list[list[RetrievedChunk]], *, k: int = 60, top_k: int = 5) -> list[RetrievedChunk]:
     scores: dict[tuple[str, int], float] = {}
     docs: dict[tuple[str, int], RetrievedChunk] = {}
 
@@ -33,8 +32,7 @@ class HybridRetriever:
         self._vector = vector
         self._rrf_k = rrf_k
 
-    async def retrieve(self, question: str, *, top_k: int = 5) -> list[RetrievedChunk]:
-        fetch_k = max(top_k * 2, 10)
-        keyword_hits = await self._keyword.retrieve(question, top_k=fetch_k)
-        vector_hits = await self._vector.retrieve(question, top_k=fetch_k)
+    async def retrieve(self, question: str, *, top_k: int = 5, source_prefixes: tuple[str, ...] | None = None) -> list[RetrievedChunk]:
+        keyword_hits = await self._keyword.retrieve(question, top_k=top_k, source_prefixes=source_prefixes)
+        vector_hits = await self._vector.retrieve(question, top_k=top_k, source_prefixes=source_prefixes)
         return reciprocal_rank_fusion([keyword_hits, vector_hits], k=self._rrf_k, top_k=top_k)

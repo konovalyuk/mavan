@@ -5,7 +5,7 @@ import torch
 import torch.nn.functional as F
 
 from app.domain import store
-from app.domain.settings import domain_settings
+from config import domain_settings
 from app.domain_model.model import DomainTransitionModel
 from app.domain_model.tokenizer import train_tokenizer, load_tokenizer, encode
 

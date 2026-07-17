@@ -13,9 +13,11 @@ from pymongo.errors import PyMongoError
 
 from config import file_settings
 from app.database import get_db
-from app.models.attachment_model import AttachmentBaseModel, FileModel, FileAttachmentResponse, \
-    DocumentAttachmentResponse
+from app.models.attachment_model import AttachmentBaseModel, FileModel, FileAttachmentResponse
 from app.services.util_service import parse_object_id
+from app.rag.index_store import upsert_chunks
+from app.rag.pipeline import reset_pipeline
+from app.rag.sources import attachment_remove_prefixes
 
 logger = logging.getLogger(__name__)
 
@@ -208,13 +210,12 @@ async def download_file(attachment_id: str, username: str) -> Path:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No files with this id.")
 
 
-async def get_attachments_metadata(attachment_ids: list[str], username: str) -> list[Union[FileAttachmentResponse, DocumentAttachmentResponse]]:
+async def get_attachments_metadata(attachment_ids: list[str], username: str) -> list[Union[FileAttachmentResponse]]:
     try:
         object_ids = [parse_object_id(aid) for aid in attachment_ids]
         attachment_filter = {
             "_id": {"$in": object_ids},
-            "created_by": username,
-            "state": {"$ne": "deleted"}
+            "created_by": username
         }
         cursor = get_db().attachments.find(attachment_filter)
         attachments = []
@@ -222,8 +223,6 @@ async def get_attachments_metadata(attachment_ids: list[str], username: str) -> 
             flat = flatten_attachment_doc(attachment_dict)
             if flat.get("type") == "file":
                 attachments.append(FileAttachmentResponse.model_validate(flat))
-            elif flat.get("type") == "document":
-                attachments.append(DocumentAttachmentResponse.model_validate(flat))
             else:
                 attachments.append(flat)
         return attachments
@@ -252,6 +251,10 @@ async def delete_file(attachment_id: str, username: str):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot delete a attachment that is attached to a chat.")
         if attachment_dic.get("project_id"):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot delete a attachment that is attached to a project.")
+        if attachment_dic.get("state") == "indexing":
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot delete attachment while indexing.")
+        if attachment_dic.get("state") == "indexed":
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot delete indexed attachment. Delete the chat to remove it from the index.")
 
         if attachment_dic.get("meta").get("type") == "file":
             file_path = attachment_dic.get("meta").get("file_path")
@@ -283,6 +286,10 @@ async def soft_delete_attachments(db, session, chat_id: str, username: str):
         cursor = db.attachments.find(attachment_filter, session=session)
         attachments_dict = await cursor.to_list(length=None)
         if attachments_dict:
+            indexed_ids = [str(a["_id"]) for a in attachments_dict if a.get("state") == "indexed"]
+            if indexed_ids:
+                await upsert_chunks([], remove_prefixes=attachment_remove_prefixes(indexed_ids))
+                reset_pipeline()
             await db.attachments_deleted.insert_many(attachments_dict, session=session)
             await db.attachments.delete_many(attachment_filter, session=session)
             logger.info("Soft deleted %d attachments for chat %s from collection attachments", len(attachments_dict), chat_id)

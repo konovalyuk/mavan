@@ -16,15 +16,15 @@ OPENAI_COMPATIBLE_CHAT = frozenset({
 })
 
 
-def chat_provider(provider: str | None = None) -> str:
-    name = (provider or llm_settings.CHAT_PROVIDER).lower()
+def chat_provider_name(provider_name: str | None = None) -> str:
+    name = (provider_name or llm_settings.CHAT_PROVIDER).lower()
     if name not in CHAT_PROVIDERS:
         raise ValueError(f"Provider {name!r} does not support chat. " f"Supported: {', '.join(sorted(CHAT_PROVIDERS))}")
     return name
 
 
 def get_chat_provider(provider: str | None = None) -> ChatProvider:
-    name = chat_provider(provider)
+    name = chat_provider_name(provider)
 
     if name == "mock":
         return MockChatAdapter()
@@ -49,24 +49,24 @@ def get_chat_provider(provider: str | None = None) -> ChatProvider:
     raise ValueError(f"No chat adapter wired for provider: {name!r}")
 
 
-def resolve_chat_model(*, request_model: str | None = None, provider: str | None = None) -> str:
+def resolve_chat_model(*, request_model: str | None = None, provider_name: str | None = None) -> str:
     if request_model is not None:
         return request_model
     if llm_settings.CHAT_MODEL:
         return llm_settings.CHAT_MODEL
 
-    name = chat_provider(provider)
+    name = chat_provider_name(provider_name)
     if name == "mock":
         return "mock"
 
     return llm_settings.provider_presets()[name].default_chat_model
 
 
-def prepare_chat_request(request: ChatCompletionRequest, provider: str | None = None) -> ChatCompletionRequest:
+def prepare_chat_request(request: ChatCompletionRequest, provider_name: str | None = None) -> ChatCompletionRequest:
     """Single place to resolve model / defaults before provider call."""
     return ChatCompletionRequest.model_validate({
         **request.model_dump(include=set(ChatCompletionRequest.model_fields.keys())),
-        "model": resolve_chat_model(request_model=request.model, provider=provider),
+        "model": resolve_chat_model(request_model=request.model, provider_name=provider_name),
         "max_tokens": request.max_tokens or llm_settings.DEFAULT_MAX_TOKENS,
         "temperature": (
             request.temperature

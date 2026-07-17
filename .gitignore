@@ -45,18 +45,14 @@ Thumbs.db
 # Logs
 *.log
 
-# Local uploads / runtime data (add when needed)
+# Local uploads / runtime data
 uploads/
 instance/
+data/
+/models/
 
 # Enterprise / AI artifacts
 notebooks/.ipynb_checkpoints/
 frontend/node_modules/
-*.egg-info/
 .mypy_cache/
 .ruff_cache/
-
-# Runtime / uploads (future aic/aibot)
-uploads/
-data/
-/models/

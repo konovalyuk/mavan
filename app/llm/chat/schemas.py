@@ -4,6 +4,12 @@ from pydantic import BaseModel, ConfigDict
 
 
 class ChatMessage(BaseModel):
+    """OpenAI Chat Completions message param (subset used by providers).
+
+    Official fields: role, content, name?, tool_calls?, tool_call_id?.
+    `name` is an optional participant label (e.g. multi-user), not a task type.
+    """
+
     model_config = ConfigDict(extra="forbid")
 
     role: Literal["system", "user", "assistant", "tool", "developer"]
@@ -14,7 +20,11 @@ class ChatMessage(BaseModel):
 
 
 class ChatCompletionRequest(BaseModel):
-    """OpenAI-compatible chat completion request for provider adapters."""
+    """OpenAI-compatible chat completion body for provider adapters.
+
+    Core OpenAI fields only. Product extensions (task_type, chat_id, mode, …)
+    live on MavanChatCompletionRequest.
+    """
 
     model_config = ConfigDict(extra="forbid")
 

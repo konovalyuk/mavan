@@ -1,34 +1,45 @@
 import logging
 from datetime import datetime, timezone
 from pymongo import ReturnDocument
-from typing import Optional, List, Dict, Any
+from typing import Optional
 
-from fastapi import Request, HTTPException
+from fastapi import HTTPException
 from bson import ObjectId
 from pymongo.errors import PyMongoError
 
+from app.agents.types import AGENT_TOOL_CHOICE, AGENT_TEMPERATURE
+from app.llm.chat.schemas import ChatMessage
 from app.models.auth_model import MavanUser
 from app.database import get_db, get_client
-from app.models.chat_model import ChatModel
+from app.models.chat_model import ChatModel, MavanChatCompletionRequest
 from app.models.message_model import MessageCreate
-from app.models.data_models import MavanChatCompletionRequest, ChatMessage
 from app.services.chat_service import parse_object_id
+from app.services.message_service import load_message_ancestor_chain
+
+from app.rag.sources import source_prefixes_from_attachment_ids
+from app.rag.pipeline import get_default_pipeline
+from app.services.prompts import build_system_content
+from app.agents.tool_loop.loop import resolve_tools
+from app.agents.helpers import chunks_to_sources
 
 logger = logging.getLogger(__name__)
 
 
-async def update_chat(
-        message_id: ObjectId,
-        content_assistant: str,
-) -> None:
+async def save_assistant_reply(message_id: str, content_assistant: str | None = None, mode: str | None = None,
+                               sources: list[dict] | None = None, tool_log: list[dict] | None = None, model: str | None = None) -> None:
     try:
+        message_object_id = parse_object_id(message_id)
         db = get_db()
         update_data = {
             "content_assistant": content_assistant,
-            "updated_at": datetime.now(timezone.utc)
+            "updated_at": datetime.now(timezone.utc),
+            "mode": mode,
+            "sources": sources or [],
+            "tool_log": tool_log or [],
+            "model": model
         }
         result = await db.messages.update_one(
-            {"_id": message_id},
+            {"_id": message_object_id},
             {"$set": update_data}
         )
 
@@ -66,10 +77,12 @@ async def check_and_update_attachments(db, session, attachment_ids: list[str], u
         if not existing_attachment:
             logger.warning("Attachment with id=%s not found", attachment_id)
             raise HTTPException(status_code=404, detail=f"Attachment with id {attachment_id} not found")
+        if existing_attachment.get("state") != "indexed":
+            raise HTTPException(status_code=400, detail=(f"Attachment {attachment_id} is not indexed. Call POST /api/v1/files/index first."))
 
 
-async def update_persist_chat(db, attachment_ids: list[str], now: datetime, username: str, chat_id: ObjectId,
-                              message_id: ObjectId) -> None:
+async def update_chat_meta(db, attachment_ids: list[str] | None, now: datetime, username: str, chat_id: ObjectId,
+                           message_id: ObjectId) -> list[str]:
     update_fields = {
         "active_message_id": str(message_id),
         "updated_at": now,
@@ -78,24 +91,16 @@ async def update_persist_chat(db, attachment_ids: list[str], now: datetime, user
     update_query = {"$set": update_fields}
     if attachment_ids:
         update_query["$addToSet"] = {"attachment_ids": {"$each": attachment_ids}}
-    await db.chats.update_one(
+    chat_doc = await db.chats.find_one_and_update(
         {"_id": chat_id},
-        update_query
+        update_query,
+        projection={"attachment_ids": 1},
+        return_document=ReturnDocument.AFTER
     )
+    return list(chat_doc.get("attachment_ids") or [])
 
 
-async def persist_chat(
-        current_user: MavanUser,
-        chat_request: MavanChatCompletionRequest,
-        task_type: Optional[str],
-        model: str,
-        attachment_ids: Optional[list[str]] = None
-) -> tuple[ObjectId, ObjectId, Optional[list[str]]]:
-    user_message = extract_message(chat_request, "user")
-    if not user_message or not user_message.content or not user_message.content.strip():
-        raise HTTPException(status_code=400, detail="User message content cannot be empty")
-    system_message = extract_message(chat_request, "system")
-
+async def save_user_turn(chat_request: MavanChatCompletionRequest, current_user: MavanUser, current_system_message: str | None, current_user_message: str | None) -> tuple[str, str, list[str]]:
     client = get_client()
     db = get_db()
     now = datetime.now(timezone.utc)
@@ -104,28 +109,57 @@ async def persist_chat(
         async with await client.start_session() as session:
             async with session.start_transaction():
                 project_id = None
-                if getattr(chat_request, "project_id", None):
-                    project_id = await get_and_update_project(db, session, getattr(chat_request, "project_id", None),
-                                                              current_user.username, now)
-                chat_id = await get_or_create_chat(db, session, getattr(chat_request, "chat_id", None), model,
-                                                   project_id, current_user,
-                                                   user_message.content, now)
-                message_id, attachment_ids = await insert_user_message(db, session, chat_id,
-                                                                       getattr(chat_request, "parent_message_id", None),
-                                                                       task_type, current_user,
-                                                                       system_message.content if system_message else None,
-                                                                       user_message.content, now, attachment_ids)
+                if chat_request.project_id:
+                    project_id = await get_and_update_project(db, session, chat_request.project_id, current_user.username, now)
+                chat_id = await get_or_create_chat(db, session, chat_request.chat_id, project_id, current_user, current_user_message, now)
+                message_id, attachment_ids = await insert_user_message(db, session, chat_id, chat_request.parent_message_id,
+                                                                       chat_request.task_type, current_user, current_system_message,
+                                                                       current_user_message, now, chat_request.attachment_ids)
                 if attachment_ids:
-                    await check_and_update_attachments(db, session, attachment_ids, current_user.username, chat_id,
-                                                       message_id)
+                    await check_and_update_attachments(db, session, attachment_ids, current_user.username, chat_id, message_id)
 
-        await update_persist_chat(db, attachment_ids, now, current_user.username, chat_id, message_id)
+        chat_attachment_ids: list[str] = await update_chat_meta(db, attachment_ids, now, current_user.username, chat_id, message_id)
     except Exception as e:
-        logger.exception("Transaction failed during persist_chat: %s", e)
+        logger.exception("Transaction failed during prepare_chat_turn: %s", e)
         raise
 
-    logger.info("Message has been persist: user=%s, chat_id=%s", current_user.username, chat_id)
-    return chat_id, message_id, attachment_ids
+    logger.info("Message persisted: user=%s, chat_id=%s", current_user.username, chat_id)
+    return str(chat_id), str(message_id), chat_attachment_ids
+
+
+async def prepare_turn(chat_request: MavanChatCompletionRequest, current_user: MavanUser)-> tuple[MavanChatCompletionRequest, str, str, tuple[str, ...] | None]:
+    current_system_message: str | None = extract_message(chat_request, "system")
+    current_user_message: str | None = extract_message(chat_request, "user")
+    if not current_user_message:
+        raise HTTPException(400, "User message content cannot be empty")
+
+    history_messages: list[ChatMessage] = []
+    if chat_request.parent_message_id:
+        if not chat_request.chat_id:
+            raise HTTPException(status_code=400, detail="chat_id required when continuing a chat")
+        history_messages = await load_chat_history_for_llm(chat_request.chat_id, chat_request.parent_message_id, chat_request.history_limit)
+
+    chat_id, message_id, chat_attachment_ids = await save_user_turn(chat_request, current_user, current_system_message, current_user_message)
+
+    prefixes = source_prefixes_from_attachment_ids(chat_attachment_ids) if chat_attachment_ids else None
+
+    if chat_request.mode == "ask":
+        chunks = []
+        if chat_attachment_ids:
+            chunks = await get_default_pipeline().retrieve_chunks(current_user_message, top_k=chat_request.rag_top_k, source_prefixes=prefixes)
+        chat_request.sources = chunks_to_sources(chunks)
+        system_content = build_system_content(mode=chat_request.mode, task_type=chat_request.task_type, custom_system=current_system_message, chunks=chunks if chat_attachment_ids else None)
+    elif chat_request.mode == "agent":
+        chat_request.tools = resolve_tools(chat_request.agent_tools)
+        chat_request.tool_choice = AGENT_TOOL_CHOICE
+        chat_request.temperature = AGENT_TEMPERATURE
+        system_content = build_system_content(mode=chat_request.mode, task_type=chat_request.task_type, custom_system=current_system_message, chunks=None)
+    else:
+        raise HTTPException(status_code=400, detail="Invalid mode")
+
+    chat_request.messages = [ChatMessage(role="system", content=system_content), *history_messages, ChatMessage(role="user", content=current_user_message)]
+
+    return chat_request, str(chat_id), str(message_id), prefixes
 
 
 async def get_and_update_project(db, session, provided_project_id, username, now) -> str:
@@ -146,7 +180,7 @@ async def get_and_update_project(db, session, provided_project_id, username, now
     return provided_project_id
 
 
-async def get_or_create_chat(db, session, chat_id, model, project_id, current_user, content_user, now) -> ObjectId:
+async def get_or_create_chat(db, session, chat_id, project_id, current_user, content_user, now) -> ObjectId:
     if chat_id:
         chat_object_id = await validate_existing_chat(db, session, chat_id, project_id, current_user)
 
@@ -156,7 +190,6 @@ async def get_or_create_chat(db, session, chat_id, model, project_id, current_us
     chat_doc = ChatModel(
         project_id=project_id,
         title=title,
-        model=model,
         root_count=0,
         created_at=now,
         created_by=current_user.username,
@@ -294,15 +327,31 @@ async def validate_existing_message(provided_chat_id: str, parent_message_doc, c
         raise HTTPException(status_code=403, detail="Access to this chat is forbidden")
 
 
-def extract_message(chat_request: MavanChatCompletionRequest, role: str) -> Optional[ChatMessage]:
-    return next(
+def extract_message(chat_request: MavanChatCompletionRequest, role: str) -> str | None:
+    msg = next(
         (
             msg for msg in chat_request.messages
             if msg.role == role and isinstance(msg.content, str) and msg.content.strip()
         ),
         None
     )
+    return msg.content.strip() if msg else None
 
 
 def generate_chat_title(text: str, max_chars: int = 30) -> str:
     return text[:max_chars] + "..." if len(text) > max_chars else text
+
+
+async def load_chat_history_for_llm(chat_id: str, parent_message_id: str, limit: int = 50) -> list[ChatMessage]:
+    chain = await load_message_ancestor_chain(parent_message_id, limit)
+    if not all(m.get("chat_id") == chat_id for m in chain):
+        raise HTTPException(status_code=403, detail="Message chain contains messages from another chat")
+
+    chain = list(reversed(chain))
+    messages: list[ChatMessage] = []
+    for doc in chain:
+        if doc.get("content_user"):
+            messages.append(ChatMessage(role="user", content=doc["content_user"]))
+        if doc.get("content_assistant"):
+            messages.append(ChatMessage(role="assistant", content=doc["content_assistant"]))
+    return messages

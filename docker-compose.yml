@@ -1,6 +1,7 @@
 services:
   mongo:
     image: mongo:7
+    command: ["--replSet", "rs0", "--bind_ip_all"]
     container_name: mavan-mongo
     restart: unless-stopped
     ports:
@@ -31,7 +32,6 @@ services:
       API_PORT: 8000
       API_RELOAD: "0"
       RAG_DATA_DIR: /app/data/notes
-      RAG_INDEX_PATH: /app/.rag/chunks.json
       RAG_VECTOR_INDEX_PATH: /app/.rag/vector_index
       LLM_CHAT_PROVIDER: gemini          # для demo без ключей
       LLM_EMBED_PROVIDER: mock

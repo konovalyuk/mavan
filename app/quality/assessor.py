@@ -1,7 +1,7 @@
 import asyncio
 import json
 
-from app.domain.settings import domain_settings
+from config import domain_settings
 from app.domain.schemas import QualityScores
 from app.llm.capabilities import Capability, get_capability
 from app.llm.chat.chat_providers import prepare_chat_request
@@ -22,7 +22,7 @@ async def _score_one(provider: str, text: str) -> dict:
             messages=[ChatMessage(role="user", content=QUALITY_PROMPT.format(text=text[:8000]))],
             temperature=0.0,
         ),
-        provider=provider.strip(),
+        provider_name=provider.strip(),
     )
     resp = await chat.complete(req)
     raw = (resp.text or "").strip()

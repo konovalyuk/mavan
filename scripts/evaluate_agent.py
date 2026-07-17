@@ -9,19 +9,38 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from config import rag_settings
-from app.agents.loop import run_tool_loop
+from app.agents.tool_loop.loop import run_tool_loop, resolve_tools
+from app.agents.types import AGENT_TEMPERATURE, AGENT_TOOL_CHOICE
+from app.llm.capabilities import Capability, get_capability
+from app.llm.chat.chat_providers import prepare_chat_request
+from app.llm.chat.schemas import ChatCompletionRequest, ChatMessage
+from app.services.prompts import build_system_content
 
 
 async def main():
     gt_path = Path(rag_settings.ground_truth_path)
     rows = [json.loads(l) for l in gt_path.read_text(encoding="utf-8").splitlines() if l.strip()]
+    chat_provider = get_capability(Capability.CHAT)(None)
 
     tool_called = 0
     answered = 0
     log = []
 
     for row in rows[:10]:
-        answer, tool_log = await run_tool_loop(row["question"])
+        request = prepare_chat_request(
+            ChatCompletionRequest(
+                messages=[
+                    ChatMessage(role="system", content=build_system_content(mode="agent")),
+                    ChatMessage(role="user", content=row["question"]),
+                ],
+                tools=resolve_tools(None),
+                tool_choice=AGENT_TOOL_CHOICE,
+                temperature=AGENT_TEMPERATURE,
+            ),
+        )
+        result = await run_tool_loop(request=request, chat_provider=chat_provider)
+        answer = result.answer
+        tool_log = result.tool_log
         called = len(tool_log) > 0
         ok = bool(answer.strip())
         tool_called += int(called)

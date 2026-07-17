@@ -5,16 +5,12 @@ from dataclasses import dataclass
 class RetrievedChunk:
     text: str
     score: float
-    source: str | None = None  # "file:notes/intro.md"
-    start_offset: int | None = None  # символ в исходном файле
-    chunk_id: str | None = None  # стабильный ключ для RRF
+    source: str | None = None
+    start_offset: int | None = None
+    chunk_id: str | None = None
 
     @property
     def rrf_key(self) -> tuple[str, int]:
+        if self.chunk_id:
+            return (self.chunk_id, 0)
         return (self.source or "unknown", self.start_offset or 0)
-
-
-@dataclass(frozen=True)
-class RagAnswer:
-    text: str
-    sources: list[RetrievedChunk]

@@ -2,7 +2,7 @@ from app.agents.domain.extract import extract_transitions
 from app.agents.domain.loop import run_discovery
 from app.agents.domain.tools import fetch_url_text
 from app.domain import store
-from app.domain.settings import domain_settings
+from config import domain_settings
 from app.domain_model.train import train_cycle
 from app.quality.assessor import assess
 

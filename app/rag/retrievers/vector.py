@@ -18,7 +18,7 @@ class VectorRetriever:
             vector_dim=int(self._store.vectors.shape[1]),
         )
 
-    async def retrieve(self, question: str, *, top_k: int = 5) -> list[RetrievedChunk]:
+    async def retrieve(self, question: str, *, top_k: int = 5, source_prefixes: tuple[str, ...] | None = None) -> list[RetrievedChunk]:
         provider = get_capability(Capability.EMBED)(self._cfg.provider)
         query_vector = (await provider.embed([question], model=self._cfg.model))[0]
 
@@ -28,4 +28,4 @@ class VectorRetriever:
                 f"Run: python scripts/index_rag_vectors.py --from-json"
             )
 
-        return self._store.search(query_vector, top_k=top_k)
+        return self._store.search(query_vector, top_k=top_k, source_prefixes=source_prefixes)

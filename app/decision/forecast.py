@@ -3,7 +3,7 @@ import json
 
 from app.decision.fuse import average_llm, merge_forecasts
 from app.domain import store
-from app.domain.settings import domain_settings
+from config import domain_settings
 from app.domain_model.inference import predict
 from app.llm.capabilities import Capability, get_capability
 from app.llm.chat.chat_providers import prepare_chat_request
@@ -38,7 +38,7 @@ async def _forecast_one(provider: str, prompt: str) -> dict[str, dict[str, float
     chat = get_capability(Capability.CHAT)(provider.strip())
     req = prepare_chat_request(
         ChatCompletionRequest(messages=[ChatMessage(role="user", content=prompt)], temperature=0.2),
-        provider=provider.strip(),
+        provider_name=provider.strip(),
     )
     resp = await chat.complete(req)
     try:

@@ -3,13 +3,14 @@ import mimetypes
 from typing import List, Union
 
 # third-party
-from fastapi import APIRouter, Depends, Path, Body, Query, status, UploadFile, File
+from fastapi import APIRouter, Depends, Path, Query, status, UploadFile, File
 from fastapi.responses import FileResponse
 
-from app.models.attachment_model import FileAttachmentResponse, DocumentAttachmentResponse
 # internal/local
-from app.services.auth_service import get_user_from_token
 from app.models.auth_model import MavanUser
+from app.models.attachment_model import FileAttachmentResponse
+from app.services.attachment_service import index_attachments, unindex_attachments
+from app.services.auth_service import get_user_from_token
 from app.services.file_service import upload_files, download_file, delete_file, get_attachments_metadata
 
 router = APIRouter()
@@ -59,7 +60,7 @@ async def api_download_file(
 
 @router.get("/api/v1/attachments/metadata",
             summary="Get attachment metadata",
-            response_model=list[Union[FileAttachmentResponse, DocumentAttachmentResponse]],
+            response_model=list[Union[FileAttachmentResponse]],
             status_code=status.HTTP_200_OK,
             response_model_exclude_none=True,
             responses={400: {"description": "Bad request"},
@@ -70,7 +71,7 @@ async def api_download_file(
 async def api_get_attachments_metadata(
         id: list[str] = Query(..., description="List of attachment IDs to get metadata for"),
         current_user: MavanUser = Depends(get_user_from_token)
-) -> list[Union[FileAttachmentResponse, DocumentAttachmentResponse]]:
+) -> list[Union[FileAttachmentResponse]]:
     """Endpoint to get file metadata."""
     return await get_attachments_metadata(id, current_user.username)
 
@@ -90,3 +91,35 @@ async def api_delete_file(
 ):
     """Endpoint to delete a file."""
     await delete_file(attachment_id, current_user.username)
+
+
+@router.post("/api/v1/files/index",
+             summary="Index a file",
+             status_code=status.HTTP_200_OK,
+             response_model_exclude_none=True,
+             responses={400: {"description": "Bad request"},
+                        401: {"description": "Unauthorized"},
+                        404: {"description": "File not found"},
+                        500: {"description": "Internal Server Error"}
+                        })
+async def api_index_attachment(
+        id: list[str] = Query(..., description="List of attachment IDs"),
+        current_user: MavanUser = Depends(get_user_from_token),
+):
+    return await index_attachments(id, username=current_user.username)
+
+
+@router.post("/api/v1/files/unindex",
+             summary="Remove attachments from RAG index",
+             status_code=status.HTTP_200_OK,
+             response_model_exclude_none=True,
+             responses={400: {"description": "Bad request"},
+                        401: {"description": "Unauthorized"},
+                        404: {"description": "File not found"},
+                        500: {"description": "Internal Server Error"}
+                        })
+async def api_unindex_attachment(
+        id: list[str] = Query(..., description="List of attachment IDs"),
+        current_user: MavanUser = Depends(get_user_from_token),
+):
+    return await unindex_attachments(id, username=current_user.username)

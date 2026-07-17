@@ -3,7 +3,7 @@ from pathlib import Path
 import torch
 import torch.nn.functional as F
 
-from app.domain.settings import domain_settings
+from config import domain_settings
 from app.domain_model.model import DomainTransitionModel
 from app.domain_model.tokenizer import load_tokenizer, encode
 

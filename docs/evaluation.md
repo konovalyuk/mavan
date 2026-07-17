@@ -13,6 +13,8 @@ Metrics for the Kaggle writeup and local regression checks. Small dev corpus (`n
 
 Run with Gemini configured or mock provider for offline smoke tests. Use `EVAL_LLM_SLEEP_SEC=6` to reduce Gemini 429 errors on `evaluate_llm_approaches.py`.
 
+RAG eval scripts use `build_system_content()` + `chat.complete()` (same system assembly as `prepare_chat_turn`).
+
 Output file: `RAG_EVAL_DIR/llm_approaches_eval.json`.
 
 ## Dataset

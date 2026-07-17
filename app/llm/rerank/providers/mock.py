@@ -1,4 +1,4 @@
-from app.rag.stores.file_store import score_by_keyword_overlap
+from app.rag.stores.file_store import score_bm25
 from app.rag.types import RetrievedChunk
 
 
@@ -16,6 +16,6 @@ class MockRerankAdapter:
         _ = model
         if not chunks:
             return []
-        scored = score_by_keyword_overlap(query, chunks)
+        scored = score_bm25(query, chunks)
         ranked = sorted(scored, key=lambda c: c.score, reverse=True)
         return ranked[:top_k]
