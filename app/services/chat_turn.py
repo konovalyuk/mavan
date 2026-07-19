@@ -7,7 +7,7 @@ from fastapi import HTTPException
 from bson import ObjectId
 from pymongo.errors import PyMongoError
 
-from app.agents.types import AGENT_TOOL_CHOICE, AGENT_TEMPERATURE
+from config import agent_settings
 from app.llm.chat.schemas import ChatMessage
 from app.models.auth_model import MavanUser
 from app.database import get_db, get_client
@@ -151,8 +151,8 @@ async def prepare_turn(chat_request: MavanChatCompletionRequest, current_user: M
         system_content = build_system_content(mode=chat_request.mode, task_type=chat_request.task_type, custom_system=current_system_message, chunks=chunks if chat_attachment_ids else None)
     elif chat_request.mode == "agent":
         chat_request.tools = resolve_tools(chat_request.agent_tools)
-        chat_request.tool_choice = AGENT_TOOL_CHOICE
-        chat_request.temperature = AGENT_TEMPERATURE
+        chat_request.tool_choice = agent_settings.AGENT_TOOL_CHOICE
+        chat_request.temperature = agent_settings.AGENT_TEMPERATURE
         system_content = build_system_content(mode=chat_request.mode, task_type=chat_request.task_type, custom_system=current_system_message, chunks=None)
     else:
         raise HTTPException(status_code=400, detail="Invalid mode")

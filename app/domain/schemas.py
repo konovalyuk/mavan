@@ -1,22 +1,6 @@
-from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field
-
-
-class DomainCreate(BaseModel):
-    name: str
-    description: str = ""
-
-
-class DomainOut(BaseModel):
-    id: str
-    name: str
-    description: str
-    status: str
-    model_checkpoint: str | None = None
-    train_cycle: int = 0
-    created_at: datetime
 
 
 class SourceCreate(BaseModel):
@@ -54,16 +38,13 @@ class QualityScores(BaseModel):
 
     def avg(self) -> float:
         return (
-            self.credibility + self.completeness + self.depth
-            + self.terminology + self.coherence + (100 - self.misunderstanding_risk)
+                self.credibility + self.completeness + self.depth
+                + self.terminology + self.coherence + (100 - self.misunderstanding_risk)
         ) / 6
 
 
-class ForecastRequest(BaseModel):
+class DecisionRequest(BaseModel):
     domain_id: str
     context_state: str
     candidate_actions: list[str]
-
-
-class DecisionRequest(ForecastRequest):
     risk_aversion: float = 0.5

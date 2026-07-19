@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Body, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends
 
 from app.domain.schemas import DecisionRequest
 from app.models.auth_model import MavanUser
@@ -23,7 +23,4 @@ async def recommend(
         body: DecisionRequest = Body(...),
         current_user: MavanUser = Depends(get_user_from_token),
 ):
-    try:
-        return await decision_service.recommend(body)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
+    return await decision_service.recommend(body)

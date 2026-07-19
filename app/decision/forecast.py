@@ -34,7 +34,7 @@ def _parse_json(text: str) -> dict:
     return out
 
 
-async def _forecast_one(provider: str, prompt: str) -> dict[str, dict[str, float]]:
+async def forecast_one(provider: str, prompt: str) -> dict[str, dict[str, float]]:
     chat = get_capability(Capability.CHAT)(provider.strip())
     req = prepare_chat_request(
         ChatCompletionRequest(messages=[ChatMessage(role="user", content=prompt)], temperature=0.2),
@@ -47,7 +47,7 @@ async def _forecast_one(provider: str, prompt: str) -> dict[str, dict[str, float
         return {}
 
 
-async def _core_states(domain_id: str, limit: int = 50) -> list[str]:
+async def core_states(domain_id: str, limit: int = 50) -> list[str]:
     seen: set[str] = set()
     for doc in await store.get_core_memory(domain_id):
         seen.add(doc.get("state", ""))
@@ -56,11 +56,9 @@ async def _core_states(domain_id: str, limit: int = 50) -> list[str]:
     return sorted(s for s in seen if s)[:limit]
 
 
-async def run_forecast(
-    domain_id: str, context_state: str, candidate_actions: list[str], *, provider: str | None = None,
-) -> dict:
+async def run_forecast(domain_id: str, context_state: str, candidate_actions: list[str], *, provider: str | None = None) -> dict:
     domain = await store.get_domain(domain_id) or {}
-    known = await _core_states(domain_id)
+    known = await core_states(domain_id)
     prior = {a: predict(domain_id, context_state, a) for a in candidate_actions}
 
     prompt = FORECAST_PROMPT.format(
@@ -76,7 +74,7 @@ async def run_forecast(
 
     try:
         raw = await asyncio.wait_for(
-            asyncio.gather(*[_forecast_one(p, prompt) for p in providers], return_exceptions=True),
+            asyncio.gather(*[forecast_one(p, prompt) for p in providers], return_exceptions=True),
             timeout=domain_settings.FORECAST_TIMEOUT_SEC,
         )
     except asyncio.TimeoutError:

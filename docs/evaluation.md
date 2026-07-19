@@ -19,7 +19,7 @@ Output file: `RAG_EVAL_DIR/llm_approaches_eval.json`.
 
 ## Dataset
 
-- Notes corpus: `RAG_DATA_DIR`
+- Notes corpus: `FILESYSTEM_PATH`
 - Ground truth: `RAG_EVAL_DIR/ground_truth.jsonl`
 
 Decision Intelligence pipeline is evaluated qualitatively via demo (`pipeline → ready → recommend`) until a domain eval set exists.

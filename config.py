@@ -64,13 +64,13 @@ class FileSettings:
 
 
 class LlmSettings:
-    PROVIDER = os.getenv("LLM_PROVIDER", "mock")
+    PROVIDER = os.getenv("PROVIDER", "mock")
 
-    CHAT_PROVIDER = os.getenv("LLM_CHAT_PROVIDER") or PROVIDER
-    EMBED_PROVIDER = os.getenv("LLM_EMBED_PROVIDER") or PROVIDER
-    RERANK_PROVIDER = os.getenv("LLM_RERANK_PROVIDER") or "mock"
-    OCR_PROVIDER = os.getenv("LLM_OCR_PROVIDER") or PROVIDER
-    SPEECH_PROVIDER = os.getenv("LLM_SPEECH_PROVIDER") or PROVIDER
+    CHAT_PROVIDER = os.getenv("CHAT_PROVIDER") or PROVIDER
+    EMBED_PROVIDER = os.getenv("EMBED_PROVIDER") or PROVIDER
+    RERANK_PROVIDER = os.getenv("RERANK_PROVIDER") or "mock"
+    OCR_PROVIDER = os.getenv("OCR_PROVIDER") or PROVIDER
+    SPEECH_PROVIDER = os.getenv("SPEECH_PROVIDER") or PROVIDER
 
     CHAT_MODEL = os.getenv("LLM_CHAT_MODEL", "")
     EMBED_MODEL = os.getenv("LLM_EMBED_MODEL", "")
@@ -166,7 +166,6 @@ class LlmSettings:
 
 class RagSettings:
     RETRIEVER = os.getenv("RAG_RETRIEVER", "hybrid")  # vector | file | hybrid
-    DATA_DIR = os.getenv("RAG_DATA_DIR", "./data/notes")
     VECTOR_INDEX_PATH = os.getenv("RAG_VECTOR_INDEX_PATH", "./.rag/vector_index")
     EVAL_DIR = os.getenv("RAG_EVAL_DIR", "./data/eval")
     CONTEXT_MAX_CHARS = int(os.getenv("RAG_CONTEXT_MAX_CHARS", "8000"))
@@ -193,6 +192,16 @@ class DomainSettings:
     QUALITY_TIMEOUT_SEC = int(os.getenv("QUALITY_TIMEOUT_SEC", "60"))
     FORECAST_TIMEOUT_SEC = int(os.getenv("FORECAST_TIMEOUT_SEC", "60"))
     QUALITY_CYCLE_MAX = int(os.getenv("QUALITY_CYCLE_MAX", "5"))
+    # Per-tick LLM tool-loop safety (not conveyor lifetime)
+    SPECIALIST_AGENT_MAX_ROUNDS = int(os.getenv("SPECIALIST_AGENT_MAX_ROUNDS", "6"))
+    DECISION_AGENT_MAX_ROUNDS = int(os.getenv("DECISION_AGENT_MAX_ROUNDS", "8"))
+    PACKET_REFINE_MAX = int(os.getenv("PACKET_REFINE_MAX", "8"))
+    COORDINATOR_PROVIDER = os.getenv("COORDINATOR_PROVIDER") or os.getenv("CHAT_PROVIDER", "gemini")
+    RESEARCH_PROVIDER = os.getenv("RESEARCH_PROVIDER") or COORDINATOR_PROVIDER
+    EXTRACT_PROVIDER = os.getenv("EXTRACT_PROVIDER") or COORDINATOR_PROVIDER
+    TRAIN_AGENT_PROVIDER = os.getenv("TRAIN_AGENT_PROVIDER") or COORDINATOR_PROVIDER
+    TRAIN_STEPS_PER_MICRO = int(os.getenv("TRAIN_STEPS_PER_MICRO", "1"))
+    CORE_MEMORY_MAX_SAMPLES = int(os.getenv("CORE_MEMORY_MAX_SAMPLES", "2000"))
     QUALITY_CREDIBILITY_MIN = float(os.getenv("QUALITY_CREDIBILITY_MIN", "70"))
     QUALITY_COMPLETENESS_MIN = float(os.getenv("QUALITY_COMPLETENESS_MIN", "60"))
     QUALITY_DEPTH_MIN = float(os.getenv("QUALITY_DEPTH_MIN", "55"))
@@ -219,6 +228,11 @@ class DomainSettings:
         return Path(cls.MODEL_DIR) / domain_id
 
 
+class AgentSettings:
+    AGENT_TEMPERATURE = float(os.getenv("AGENT_TEMPERATURE", "0.2"))
+    AGENT_TOOL_CHOICE = os.getenv("AGENT_TOOL_CHOICE", "auto")
+
+
 flask_settings = FlaskSettings()
 api_settings = ApiSettings()
 mongo_settings = MongoSettings()
@@ -227,3 +241,4 @@ file_settings = FileSettings()
 llm_settings = LlmSettings()
 rag_settings = RagSettings()
 domain_settings = DomainSettings()
+agent_settings = AgentSettings()

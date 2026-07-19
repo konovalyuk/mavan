@@ -31,10 +31,10 @@ services:
       API_HOST: 0.0.0.0
       API_PORT: 8000
       API_RELOAD: "0"
-      RAG_DATA_DIR: /app/data/notes
+      FILESYSTEM_PATH: /app/data/notes
       RAG_VECTOR_INDEX_PATH: /app/.rag/vector_index
-      LLM_CHAT_PROVIDER: gemini          # для demo без ключей
-      LLM_EMBED_PROVIDER: mock
+      CHAT_PROVIDER: gemini          # для demo без ключей
+      EMBED_PROVIDER: mock
     volumes:
       - ./data/notes:/app/data/notes:ro
       - rag_index:/app/.rag

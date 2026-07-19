@@ -1,5 +1,4 @@
 from app.agents.adk.helpers import extract_final_text, extract_grounding_sources
-from app.agents.types import AgentResult
 from config import llm_settings
 from google.adk.agents import Agent
 from google.adk.models.google_llm import Gemini
@@ -25,18 +24,7 @@ search_agent = Agent(
 google_search_agent_runner = InMemoryRunner(agent=search_agent)
 
 
-class AdkSearchAgent:
-    backend = "adk"
-
-    async def run(self, question: str, *, provider: str | None = None, session_id: str | None = None) -> AgentResult:
-        sid = session_id or "mavan_adk"
-        events = await google_search_agent_runner.run_debug(question, quiet=True, user_id="mavan", session_id=sid)
-        return AgentResult(
-            answer=extract_final_text(events),
-            backend=self.backend,
-            sources=extract_grounding_sources(events),
-            session_id=sid,
-        )
-
-
-adk_agent = AdkSearchAgent()
+async def adk_search_agent(question: str, session_id: str | None = None) -> tuple[str, list[dict]]:
+    sid = session_id or "mavan_adk"
+    events = await google_search_agent_runner.run_debug(question, quiet=True, user_id="mavan", session_id=sid)
+    return extract_final_text(events), extract_grounding_sources(events)

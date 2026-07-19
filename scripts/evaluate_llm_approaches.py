@@ -8,9 +8,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from config import rag_settings
+from config import rag_settings, agent_settings
 from app.agents.tool_loop.loop import run_tool_loop, resolve_tools
-from app.agents.types import AGENT_TEMPERATURE, AGENT_TOOL_CHOICE
 from app.llm.capabilities import Capability, get_capability
 from app.llm.chat.chat_providers import prepare_chat_request
 from app.llm.chat.schemas import ChatCompletionRequest, ChatMessage
@@ -82,8 +81,8 @@ async def main():
                     ChatMessage(role="user", content=q),
                 ],
                 tools=resolve_tools(None),
-                tool_choice=AGENT_TOOL_CHOICE,
-                temperature=AGENT_TEMPERATURE,
+                tool_choice=agent_settings.AGENT_TOOL_CHOICE,
+                temperature=agent_settings.AGENT_TEMPERATURE,
             ),
         )
         result = await run_tool_loop(request=agent_req, chat_provider=chat)

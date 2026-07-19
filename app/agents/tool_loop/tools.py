@@ -3,6 +3,7 @@ from app.core.guardrails import AGENT_PYTHON_TOOL
 from app.rag.pipeline import get_default_pipeline
 from app.services.prompts import format_context
 from app.rag.types import RetrievedChunk
+from app.agents.adk.search_agent import adk_search_agent
 
 SEARCH_NOTES_TOOL = {
     "type": "function",
@@ -60,9 +61,8 @@ async def execute_tool(name: str, args: dict, source_prefixes: tuple[str, ...] |
         text, sources = await search_notes(args["query"], top_k=args.get("top_k", 5), source_prefixes = source_prefixes)
         return text, {"sources": chunks_to_sources(sources)}
     if name == "web_search":
-        from app.agents.adk.search_agent import adk_agent
-        result = await adk_agent.run(args["query"])
-        return result.answer, {"sources": result.sources}
+        answer, sources  = await adk_search_agent(args["query"])
+        return answer, {"sources": sources}
     if name == "run_python":
         if not AGENT_PYTHON_TOOL:
             return "run_python disabled", {"disabled": True}

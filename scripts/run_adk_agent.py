@@ -8,7 +8,7 @@ sys.path.insert(0, str(ROOT))
 
 import config  # noqa: F401
 
-from app.agents.registry import get_runtime
+from app.agents.adk.search_agent import adk_search_agent
 
 async def main():
     args = sys.argv[1:]
@@ -17,7 +17,7 @@ async def main():
         session_id = args.pop(0).split("=", 1)[1]
 
     prompt = " ".join(args) if args else input("You: ")
-    result = await get_runtime("adk").run(prompt, session_id=session_id)
+    result = await adk_search_agent(prompt, session_id=session_id)
 
     print(result.answer)
     if result.sources:

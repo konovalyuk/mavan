@@ -6,8 +6,8 @@
 
 AI-Powered Decision Intelligence: multi-agent pipeline builds a **domain transition model** (State→Action→Outcome), then fuses it with Gemini/LLM ensemble for probabilistic decision forecasting.
 
-- **Stage 1:** discovery → HITL sources → quality gate → train domain model → `core_memory`
-- **Stage 2:** `POST /api/v1/decisions/recommend` — forecast + recommended action
+- **Stage 1:** Domain conveyor + PacketCoordinator LlmAgents (atomic packets until `pipeline/stop`)
+- **Stage 2:** `POST /api/v1/decisions/recommend` — Forecast/Decision LlmAgents
 
 Also includes RAG + tool-calling agents for notes ([docs/evaluation.md](docs/evaluation.md)).
 
@@ -17,7 +17,7 @@ FastAPI (`main.py`) + Flask UI (`run_flask.py`). Config via `.env`.
 
 Organizations lack **decision memory**. MAVAN collects domain data via agents, trains a lightweight outcome model, and recommends actions from scenario probabilities — not generic chat.
 
-**Secondary demo:** personal notes RAG/agent (`RAG_DATA_DIR`).
+**Secondary demo:** personal notes RAG/agent (`FILESYSTEM_PATH`).
 
 ## Requirements
 
@@ -169,7 +169,9 @@ Response (non-stream): `{chat_id, message_id, model, text, mode, sources, tool_c
 | Method | Path | Description |
 |--------|------|-------------|
 | POST | `/api/v1/domains` | Create decision domain |
-| POST | `/api/v1/domains/{id}/pipeline/start` | Run domain pipeline |
+| GET | `/api/v1/domains/{id}` | Domain status, metrics, checkpoint |
+| POST | `/api/v1/domains/{id}/pipeline/start` | Start continuous learning conveyor |
+| POST | `/api/v1/domains/{id}/pipeline/stop` | Stop conveyor |
 
 ### Other
 
@@ -239,7 +241,7 @@ Kubernetes manifests and Nginx config are in `deployment/`. Monitoring configs (
 
 ## RAG (secondary demo — notes search)
 
-1. Put `.txt`/`.md` files into `data/notes/` (or set `RAG_DATA_DIR`).
+1. Put `.txt`/`.md` files into `data/notes/` (or set `FILESYSTEM_PATH`).
 2. Copy env: `cp .env.example .env` — set providers and `RAG_RETRIEVER=hybrid`.
 3. Build index (or upload `.txt`/`.md` via `POST /api/v1/files/upload` — background index append):
 
@@ -279,7 +281,7 @@ curl http://localhost:8000/health
 ## Environment (RAG + eval)
 
 ```env
-RAG_DATA_DIR=/path/to/notes
+FILESYSTEM_PATH=/path/to/notes
 RAG_VECTOR_INDEX_PATH=/path/to/vector_index
 RAG_EVAL_DIR=/path/to/eval
 RAG_RETRIEVER=hybrid
@@ -288,7 +290,7 @@ RAG_RETRIEVER=hybrid
 ## Capstone checklist (repo)
 
 - [ ] Decision domain pipeline → `ready` → `/decisions/recommend`
-- [ ] Gemini configured (`LLM_CHAT_PROVIDER=gemini`)
+- [ ] Gemini configured (`CHAT_PROVIDER=gemini`)
 - [ ] Eval scripts run; results in writeup
 - [ ] Kaggle writeup (track **Agents for Business**) + YouTube + GitHub tag `capstone-v1`
 

@@ -29,7 +29,7 @@ pip install torch sentencepiece trafilatura
 ## Capstone / Gemini
 
 ```env
-LLM_CHAT_PROVIDER=gemini
+CHAT_PROVIDER=gemini
 GOOGLE_API_KEY=your-gemini-key
 QUALITY_PROVIDERS=gemini
 FORECAST_PROVIDERS=gemini
@@ -39,7 +39,7 @@ AGENT_PYTHON_TOOL=false
 
 ## Demo rehearsal env
 
-Default training thresholds (`TRAIN_MIN_SAMPLES=50`, etc.) need many quality-approved sources. For capstone rehearsal, optionally add:
+Default training thresholds (`TRAIN_MIN_SAMPLES=50`, etc.) need substantial quality-passed ingested text. For capstone rehearsal, optionally add:
 
 ```env
 TRAIN_MIN_SAMPLES=10
@@ -62,13 +62,13 @@ CLI scripts bypass HTTP auth and call services directly:
 
 ```bash
 python scripts/create_domain.py --name energy --description "Energy policy"
-# Approve sources: POST /api/v1/domains/{id}/sources/approve (Swagger or curl)
+# Starts conveyor; Ctrl+C stops it
 python scripts/run_domain_pipeline.py --domain-id <id> --provider gemini
 python scripts/run_forecast.py --domain-id <id> --state "Oil prices rising" \
   --actions "Increase subsidy,Remove subsidy" --recommend
 ```
 
-Via API (requires auth token): same paths under `/api/v1/domains`, `/api/v1/decisions/recommend`.
+Via API: `POST .../pipeline/start`, `POST .../pipeline/stop`, `POST /api/v1/decisions/recommend`.
 
 ## MCP server (optional)
 

@@ -6,6 +6,8 @@ import json
 import sys
 from pathlib import Path
 
+from app.decision.forecast import run_forecast
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.domain.schemas import DecisionRequest
@@ -28,7 +30,7 @@ async def main():
     if args.recommend:
         result = await decision_service.recommend(body, provider=args.provider)
     else:
-        result = await decision_service.forecast(body, provider=args.provider)
+        result = {"forecast": await run_forecast(body.domain_id, body.context_state, body.candidate_actions, provider=args.provider)}
     print(json.dumps(result, default=str, indent=2))
 
 

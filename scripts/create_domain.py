@@ -8,8 +8,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app.domain.schemas import DomainCreate
-from app.services import domain_service
+from app.models.domain_model import DomainCreate
+from app.services import domain_conveyor
 
 
 async def main():
@@ -19,10 +19,10 @@ async def main():
     p.add_argument("--run-pipeline", action="store_true")
     p.add_argument("--provider", default=None)
     args = p.parse_args()
-    domain = await domain_service.create_domain(DomainCreate(name=args.name, description=args.description))
+    domain = await domain_conveyor.create_domain(DomainCreate(name=args.name, description=args.description))
     print(json.dumps(domain.model_dump(), default=str, indent=2))
     if args.run_pipeline:
-        result = await domain_service.start_pipeline(domain.id, provider=args.provider)
+        result = await domain_conveyor.start_conveyor(domain.id, provider=args.provider)
         print(json.dumps(result, default=str, indent=2))
 
 

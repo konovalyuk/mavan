@@ -1,76 +1,51 @@
 # Architecture
 
-## Decision Intelligence (primary — capstone)
+## LlmAgent vs orchestration
 
-Two-stage flow for domain-specific decision forecasting.
+| Concept | Role |
+|---------|------|
+| **LlmAgent** | Real agent: `provider` + `model` + goal + instruction + tools + observe→reason→act (`app/agents/runtime/`) |
+| **Domain conveyor** | Explicit orchestration (not an agent) — `while not stop` packet cycles in `conveyor.py` |
+| **Code fan-out** | e.g. parallel QualityJudge LlmAgents via `asyncio.gather` + score aggregation |
 
-```
-Stage 1 — Build domain memory
-  POST /api/v1/domains
-  → discovery agent (Gemini + google_search)
-  → HITL: POST .../sources/approve
-  → ingest in RAM (trafilatura)
-  → quality gate (parallel LLMs, 6 metrics)
-  → extract State–Action–Outcome
-  → train DomainTransitionModel (SentencePiece + transformer)
-  → Mongo core_memory (+ checkpoint on disk)
+We do **not** use SequentialAgent / ParallelAgent / LoopAgent as agent types.
 
-Stage 2 — Forecast & recommend
-  POST /api/v1/decisions/recommend
-  → domain model prior per (state, action)
-  → parallel LLM ensemble (Gemini)
-  → fuse (confidence-weighted alpha)
-  → analyzer → recommended_action + rationale
-```
+## Decision Intelligence
 
-Key modules: `app/agents/domain/`, `app/quality/`, `app/domain_model/`, `app/decision/`, `app/domain/store.py`.
-
-## Intelligence API (unified)
-
-Single entry for chat and agents:
+### Stage 1 — Domain conveyor + PacketCoordinator
 
 ```
-POST /api/v1/chat/completions
-  → prepare_chat_turn (persist + build LLM messages) → execute → update_chat
+POST /api/v1/domains
+POST /api/v1/domains/{id}/pipeline/start   → conveyor (background, status=running)
+POST /api/v1/domains/{id}/pipeline/stop
+
+Conveyor (until stop)
+  → PacketCoordinator (LlmAgent) each packet cycle:
+       ResearchAgent → run_quality_team → ExtractAgent → TrainAgent
+       feedback from quality/extract returns to coordinator → Research again
 ```
 
-| mode | Dispatch |
-|------|----------|
-| `ask` | If `chat.attachment_ids`: retrieve on current user text → one system (task + RAG context) + history + user; else system + history + user |
-| `agent` | `run_tool_loop(messages, tools)` — RAG via `search_notes` with `source_prefixes` from chat attachments |
+- **Atomic packet**: domain material with state→action→final-state, sized for one quality + train step.
+- **Quality**: one `QualityJudge_{provider}` LlmAgent per `QUALITY_PROVIDERS` entry (parallel) + **code** mean/`passes`.
+- Raw web text is ephemeral; **capped S-A-O replay** + weight checkpoint persist.
+- Collection `domains` = passport (status, metrics, checkpoint).
 
-History: loaded automatically when `parent_message_id` is set (`chat_id` required). History is user/assistant only (no past system messages).
+### Stage 2 — Forecast & recommend
 
-RAG: no `use_rag` flag. Scoped retrieve uses `chat.attachment_ids` after persist. Attachments must be `indexed` before attach. Unindex happens on chat soft-delete, not on standalone file delete of indexed attachments.
+```
+POST /api/v1/decisions/recommend
+  → DecisionCoordinator (LlmAgent)
+       → ForecastAgent / DecisionAgent (each with provider/model)
+```
 
-Streaming: `ask` — token stream via provider; `agent` — `thinking` event, then full answer (single tool_loop, no double LLM on final).
+## Chat / RAG
 
-Multi-agent (`researcher` → `writer`) — CLI/scripts only (`run_multi_agent.py`), not HTTP API.
-
-## RAG core (single)
-
-| Function | Role |
-|----------|------|
-| `prepare_chat_turn()` | Persist message, optional retrieve, build one system + history + user |
-| `build_system_content()` | Task/custom system + optional RAG grounding/context |
-| `retrieve_chunks()` | Search only (ask path, agent tools, eval) |
-| `upsert_chunks()` | Index/unindex path for notes and attachments |
-| `format_context()` | Agent tool output formatting (`search_notes`) |
-
-Metadata lives on `messages` (`mode`, `sources`, `tool_log`).
-
-## RAG patterns
-
-| Pattern | Where | Context injection |
-|---------|-------|-------------------|
-| Fixed RAG | `mode=ask` when chat has attachments | `build_system_content(chunks=...)` in `prepare_chat_turn` |
-| Agent RAG | `search_notes` tool | `format_context` in tool |
-| Eval / CLI | `build_system_content` + `complete`/`stream` | yes |
+`POST /api/v1/chat/completions` unchanged (`ask` / `agent` tool loop). ADK demo stays in `app/agents/adk/`.
 
 ## Security
 
-- Ingest: `validate_url`, `sanitize_text` (`app/core/guardrails.py`)
-- Forecast API: input length and action count limits
-- Agent: `run_python` disabled when `AGENT_PYTHON_TOOL=false`
+- URL validate + text sanitize on ingest
+- Forecast input caps
+- `AGENT_PYTHON_TOOL=false` disables run_python in chat agent mode
 
 See [CAPSTONE.md](CAPSTONE.md), [setup.md](setup.md).

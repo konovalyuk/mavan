@@ -7,7 +7,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from config import rag_settings
+from config import rag_settings, file_settings
 from app.rag.index_store import upsert_chunks
 from app.rag.pipeline import reset_pipeline
 from app.rag.stores.file_store import chunk_text, load_chunk_index, load_text_files
@@ -19,7 +19,7 @@ def rp(path: Path) -> Path:
 
 async def main() -> None:
     p = argparse.ArgumentParser(description="Index corpus into RAG (vector + keyword)")
-    p.add_argument("--data-dir", type=Path, default=Path(rag_settings.DATA_DIR))
+    p.add_argument("--data-dir", type=Path, default=Path(file_settings.FILESYSTEM_PATH))
     p.add_argument("--chunks-json", type=Path, default=None)
     p.add_argument("--from-json", action="store_true")
     p.add_argument("--strategy", choices=["paragraph", "sliding"], default="paragraph")

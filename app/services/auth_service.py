@@ -1,10 +1,13 @@
 import logging
-from typing import Optional
+from typing import Optional, Any
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from app.core.security import decode_access_token
 from app.models.auth_model import MavanUser
 from config import auth_settings
+from app.database import get_db
+from datetime import datetime, timedelta, timezone
+import bcrypt
+import jwt
 
 logger = logging.getLogger(__name__)
 
@@ -18,16 +21,27 @@ def _dev_user() -> MavanUser:
     )
 
 
-def _user_from_jwt(credentials: HTTPAuthorizationCredentials) -> MavanUser:
+def decode_access_token(credentials: HTTPAuthorizationCredentials) -> MavanUser:
     try:
-        return decode_access_token(credentials.credentials)
-    except ValueError as e:
-        logger.warning("JWT validation failed: %s", e)
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token",
-            headers={"WWW-Authenticate": "Bearer"},
+        payload = jwt.decode(
+            credentials.credentials,
+            auth_settings.JWT_SECRET_KEY,
+            algorithms=[auth_settings.JWT_ALGORITHM],
         )
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token expired", headers={"WWW-Authenticate": "Bearer"})
+    except jwt.PyJWTError:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token", headers={"WWW-Authenticate": "Bearer"})
+
+    username = payload.get("sub")
+    if not username:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token payload", headers={"WWW-Authenticate": "Bearer"})
+
+    authorities = payload.get("authorities", ["user"])
+    if not isinstance(authorities, list):
+        authorities = ["user"]
+
+    return MavanUser(username=username, authorities=authorities)
 
 
 async def get_user_from_token(
@@ -41,7 +55,7 @@ async def get_user_from_token(
             detail="Not authenticated",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    return _user_from_jwt(credentials)
+    return decode_access_token(credentials)
 
 
 def require_roles(*required_roles: str):
@@ -52,3 +66,41 @@ def require_roles(*required_roles: str):
         return user
 
     return dependency
+
+
+async def authenticate_user(username: str, password: str) -> MavanUser:
+    doc = await get_db().users.find_one({"username": username, "is_active": True})
+    if not doc or not verify_password(password, doc["password_hash"]):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+
+    return MavanUser(username=doc["username"], authorities=doc.get("authorities", ["user"]))
+
+
+def verify_password(plain: str, hashed: str) -> bool:
+    return bcrypt.checkpw(
+        plain.encode("utf-8"),
+        hashed.encode("utf-8"),
+    )
+
+
+def hash_password(plain: str) -> str:
+    return bcrypt.hashpw(
+        plain.encode("utf-8"),
+        bcrypt.gensalt(),
+    ).decode("utf-8")
+
+
+def create_access_token(*, username: str, authorities: list[str] | None = None) -> str:
+    now = datetime.now(timezone.utc)
+    expire = now + timedelta(minutes=auth_settings.JWT_EXPIRE_MINUTES)
+    payload: dict[str, Any] = {
+        "sub": username,
+        "authorities": authorities or ["user"],
+        "iat": now,
+        "exp": expire,
+    }
+    return jwt.encode(
+        payload,
+        auth_settings.JWT_SECRET_KEY,
+        algorithm=auth_settings.JWT_ALGORITHM,
+    )

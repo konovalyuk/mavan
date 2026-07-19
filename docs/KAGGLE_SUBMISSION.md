@@ -50,7 +50,7 @@ source .venv/bin/activate
 python main.py
 ```
 
-`.env`: `LLM_CHAT_PROVIDER=gemini`, `GOOGLE_API_KEY`, `GOOGLE_SEARCH_API_KEY`, `AGENT_PYTHON_TOOL=false`
+`.env`: `CHAT_PROVIDER=gemini`, `GOOGLE_API_KEY`, `GOOGLE_SEARCH_API_KEY`, `AGENT_PYTHON_TOOL=false`
 
 Use [demo rehearsal env](#demo-rehearsal-env) if pipeline returns `insufficient`.
 
@@ -70,20 +70,18 @@ Replace with Option A/B before final submit if possible.
 | Time | Screen | Say |
 |------|--------|-----|
 | **0:00–0:40** | Title / problem slide | Decision memory — forecast final outcomes after actions, not generic chat. |
-| **0:40–1:30** | CAPSTONE architecture | Stage 1: agents, HITL, quality, domain model. Stage 2: forecast + recommend. |
+| **0:40–1:30** | CAPSTONE architecture | Stage 1: multi-agent coordinator + specialists, quality, domain model. Stage 2: forecast + recommend. |
 | **1:30–2:30** | Terminal | `create_domain.py` → approve sources |
 | **2:30–3:30** | Terminal | `run_domain_pipeline.py --provider gemini` → `ready` |
 | **3:30–4:30** | Terminal / Swagger | `run_forecast.py --recommend` → show `recommended_action` + probabilities |
-| **4:30–5:00** | Features slide | Gemini, tool use, multi-agent, HITL, RAG, eval — GitHub link |
+| **4:30–5:00** | Features slide | Gemini, tool use, multi-agent, RAG, eval — GitHub link |
 
 ### Demo commands (copy-paste)
 
 ```bash
 python scripts/create_domain.py --name energy --description "Energy policy"
 
-curl -X POST "http://127.0.0.1:8000/api/v1/domains/DOMAIN_ID/sources/approve" \
-  -H "Authorization: Bearer YOUR_TOKEN" -H "Content-Type: application/json" -d '{}'
-
+# Runs until Ctrl+C (continuous conveyor)
 python scripts/run_domain_pipeline.py --domain-id DOMAIN_ID --provider gemini
 
 python scripts/run_forecast.py --domain-id DOMAIN_ID \
@@ -91,7 +89,7 @@ python scripts/run_forecast.py --domain-id DOMAIN_ID \
   --actions "Increase subsidy,Remove subsidy" --recommend
 ```
 
-If discovery finds no sources: add URL via `POST /api/v1/domains/{id}/sources`, then approve.
+Or via API: `POST /api/v1/domains/{id}/pipeline/start` then later `.../pipeline/stop`.
 
 ### Demo rehearsal env
 
